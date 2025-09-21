@@ -1,0 +1,391 @@
+
+
+import React, { useState, useCallback, useMemo } from 'react';
+// FIX: The 'Line' component was not imported from 'recharts', causing a compile-time error.
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, BarChart, Line } from 'recharts';
+import type { MarketAnalysisResult, MarketAssetMetric, SectorAverage, Currency, View, MarketAnalysisState, MarketAnalysisResultWithCriterion } from '../types';
+import { analyzeMarketSector } from '../services/geminiService';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+
+interface MarketViewProps {
+    currentEngine: string;
+    onTokenUsage: (usage: { promptTokens: number; candidateTokens: number; totalTokens: number; model: string; }) => void;
+    onApiError: (e: unknown, title: string, message: string) => void;
+    isApiBlocked: boolean;
+    currency: Currency;
+    setSearchQuery: (query: string) => void;
+    setActiveView: (view: View) => void;
+    analysisState: MarketAnalysisState;
+    setAnalysisState: React.Dispatch<React.SetStateAction<MarketAnalysisState>>;
+}
+
+const SECTORS = [
+    'Technology', 'Healthcare', 'Financials', 'Consumer Discretionary', 
+    'Communication Services', 'Industrials', 'Consumer Staples', 'Energy', 
+    'Utilities', 'Real Estate', 'Materials', 'ETF', 'Cryptocurrencies'
+];
+const EXCHANGES = ['Wall Street (NYSE)', 'Nasdaq', 'IBEX 35', 'Bolsa de Tokio (TSE)', 'Bolsa de Fráncfort (DAX)', 'Bolsa de Londres (LSE)'];
+const CRITERIA_SUGGESTIONS = [
+    'Mayor capitalización de mercado',
+    'Mayor crecimiento reciente',
+    'Mejor rendimiento por dividendo'
+];
+
+
+// --- Reusable Sub-components for Displaying Results ---
+
+const SentimentIndicator: React.FC<{ sentiment: 'Bullish' | 'Bearish' | 'Neutral' }> = ({ sentiment }) => {
+    const styles: Record<string, { icon: string; color: string }> = {
+        Bullish: { icon: 'fa-arrow-up', color: 'text-green-600 dark:text-green-500' },
+        Bearish: { icon: 'fa-arrow-down', color: 'text-red-600 dark:text-red-500' },
+        Neutral: { icon: 'fa-minus', color: 'text-slate-500 dark:text-slate-400' },
+    };
+    const style = styles[sentiment] || styles.Neutral;
+    return (
+        <div className="flex flex-col items-center">
+            <i className={`fas ${style.icon} ${style.color} text-lg`}></i>
+            <span className={`text-xs font-bold ${style.color}`}>{sentiment || 'Neutral'}</span>
+        </div>
+    );
+};
+
+const Metric: React.FC<{ label: string; value: string | number; accent?: boolean }> = ({ label, value, accent }) => (
+    <div className="text-center">
+        <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+        <p className={`font-bold ${accent ? 'text-lg text-red-600' : 'text-md text-slate-800 dark:text-slate-200'}`}>{value}</p>
+    </div>
+);
+
+const AssetCard: React.FC<{ asset: MarketAssetMetric, currency: Currency, onSelect: (ticker: string) => void }> = ({ asset, currency, onSelect }) => (
+    <button
+        type="button"
+        onClick={() => onSelect(asset.ticker)}
+        className="w-full text-left bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-3 hover:shadow-lg hover:border-red-500 dark:hover:border-red-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+        title={`Analizar ${asset.name} (${asset.ticker})`}
+    >
+        <div className="flex justify-between items-start">
+            <h4 className="font-bold text-slate-900 dark:text-slate-100">{asset.name}</h4>
+            <span className="text-xs font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded">{asset.ticker}</span>
+        </div>
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg text-center">
+            <p className="text-xs text-blue-800 dark:text-blue-300 font-semibold">Capitalización de mercado:</p>
+            <p className="text-sm font-bold text-blue-900 dark:text-blue-200">{asset.marketCap}</p>
+        </div>
+        <div className="grid grid-cols-4 gap-2 items-center">
+            <SentimentIndicator sentiment={asset.sentiment} />
+            <Metric label="Ratio P/E" value={(asset.peRatio ?? 0).toFixed(2)} accent />
+            <Metric label="BPA" value={`${(asset.eps ?? 0).toFixed(2)} ${currency}`} />
+            <Metric label="Dividendo" value={`${(asset.dividendYield ?? 0).toFixed(2)}%`} />
+        </div>
+    </button>
+);
+
+const SectorAverageCard: React.FC<{ sector: string, average: SectorAverage, currency: Currency }> = ({ sector, average, currency }) => (
+    <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl shadow-md border-2 border-dashed border-red-300 dark:border-red-600 flex flex-col justify-between gap-3">
+        <h4 className="font-bold text-red-800 dark:text-red-200 text-center">Promedio del Sector {sector}</h4>
+        <div className="text-center">
+            <p className="text-xs text-red-700 dark:text-red-300">Cap. de Mercado: {average.marketCap}</p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 items-center">
+            <Metric label="Ratio P/E Prom." value={(average.averagePeRatio ?? 0).toFixed(2)} accent />
+            <Metric label="BPA Prom." value={`${(average.averageEps ?? 0).toFixed(2)} ${currency}`} />
+            <Metric label="Dividendo Prom." value={`${(average.averageDividendYield ?? 0).toFixed(2)}%`} />
+        </div>
+    </div>
+);
+
+const AssetsComparisonChart: React.FC<{ data: MarketAssetMetric[], currency: Currency }> = ({ data, currency }) => {
+    return (
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg mt-8">
+            <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-4">Comparación de Métricas de Activos</h3>
+            <div className="h-96">
+                <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={data} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-700" />
+                        <XAxis dataKey="ticker" tick={{ fontSize: 12 }} />
+                        <YAxis yAxisId="left" label={{ value: `Valor (${currency})`, angle: -90, position: 'insideLeft', offset: -5 }} tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="right" orientation="right" label={{ value: 'Rendimiento de Dividendo (%)', angle: -90, position: 'insideRight', offset: 10 }} tick={{ fontSize: 10 }} />
+                        <Tooltip
+                            contentStyle={{
+                                backgroundColor: document.documentElement.classList.contains('dark') ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+                                backdropFilter: 'blur(5px)',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '0.5rem',
+                                color: document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#334155'
+                            }}
+                            labelStyle={{ fontWeight: 'bold' }}
+                        />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="eps" name="BPA" fill="#3b82f6" />
+                        <Bar yAxisId="left" dataKey="peRatio" name="Ratio P/E" fill="#ef4444" />
+                        <Line yAxisId="right" type="monotone" dataKey="dividendYield" name="Rendimiento de Dividendo (%)" stroke="#16a34a" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    </ComposedChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
+};
+
+const AnalysisComparisonChart: React.FC<{ results: Record<string, MarketAnalysisResultWithCriterion[]> }> = ({ results }) => {
+    const chartData = useMemo(() => {
+        return Object.entries(results).flatMap(([sector, analyses]) =>
+            analyses.map(analysis => ({
+                name: `${sector} (${analysis.criterion.substring(0, 15)}...)`,
+                peRatio: analysis.sectorAverage.averagePeRatio,
+                dividendYield: analysis.sectorAverage.averageDividendYield,
+                eps: analysis.sectorAverage.averageEps
+            }))
+        );
+    }, [results]);
+
+    if (chartData.length <= 1) return null;
+
+    return (
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg mt-8">
+            <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-4">Comparación de Promedios Sectoriales</h3>
+            <div className="h-96">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-700" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-25} textAnchor="end" height={60} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip
+                             contentStyle={{
+                                backgroundColor: document.documentElement.classList.contains('dark') ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+                                backdropFilter: 'blur(5px)',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '0.5rem',
+                                color: document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#334155'
+                            }}
+                            labelStyle={{ fontWeight: 'bold' }}
+                        />
+                        <Legend />
+                        <Bar dataKey="peRatio" name="Ratio P/E Promedio" fill="#ef4444" />
+                        <Bar dataKey="dividendYield" name="Dividendo Promedio (%)" fill="#16a34a" />
+                        <Bar dataKey="eps" name="BPA Promedio" fill="#3b82f6" />
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
+};
+
+// --- Main Market View Component ---
+
+export const MarketView: React.FC<MarketViewProps> = ({ currentEngine, onTokenUsage, onApiError, isApiBlocked, currency, setSearchQuery, setActiveView, analysisState, setAnalysisState }) => {
+    const [selectedSectors, setSelectedSectors] = useLocalStorage<string[]>('marketView_selectedSectors', []);
+    const [criteriaList, setCriteriaList] = useLocalStorage<string[]>('marketView_criteriaList', ['Mayor rentabilidad total']);
+    const [newCriterion, setNewCriterion] = useState('');
+    
+    const { results: analysisResults, isLoading, error, openSectors } = analysisState;
+
+    const handleToggleSector = (sector: string) => {
+        setSelectedSectors(prev =>
+            prev.includes(sector)
+                ? prev.filter(s => s !== sector)
+                : [...prev, sector]
+        );
+    };
+
+    const handleAddCriterion = () => {
+        if (newCriterion.trim() && !criteriaList.includes(newCriterion.trim())) {
+            setCriteriaList([...criteriaList, newCriterion.trim()]);
+            setNewCriterion('');
+        }
+    };
+    
+    const handleRemoveCriterion = (criterionToRemove: string) => {
+        setCriteriaList(criteriaList.filter(c => c !== criterionToRemove));
+    };
+
+    const handleAnalyze = useCallback(async () => {
+        const sectorsForAnalysis = selectedSectors.length > 0 ? selectedSectors : [...SECTORS, ...EXCHANGES];
+        const criteriaForAnalysis = criteriaList;
+
+        if (isApiBlocked) {
+            setAnalysisState(s => ({ ...s, error: "Las funciones de IA están desactivadas por límite de cuota." }));
+            return;
+        }
+
+        if (criteriaForAnalysis.length === 0) {
+            setAnalysisState(s => ({ ...s, error: "Por favor, defina al menos un criterio de análisis." }));
+            return;
+        }
+
+        setAnalysisState({ isLoading: true, results: {}, error: null, openSectors: [] });
+
+        try {
+            const analysesPromises = sectorsForAnalysis.flatMap(sector =>
+                criteriaForAnalysis.map(criterion =>
+                    analyzeMarketSector(sector, criterion, currentEngine, currency)
+                        .then(response => ({ status: 'fulfilled' as const, value: { ...response, sector, criterion } }))
+                        .catch(reason => ({ status: 'rejected' as const, reason, sector, criterion }))
+                )
+            );
+
+            const results = await Promise.all(analysesPromises);
+            
+            const successfulResults: { data: MarketAnalysisResult; usage: { totalTokens: number }; sector: string; criterion: string }[] = [];
+            const failedAnalyses: { sector: string; criterion: string; reason: any }[] = [];
+            
+            let totalUsage = { promptTokens: 0, candidateTokens: 0, totalTokens: 0 };
+
+            for (const result of results) {
+                if (result.status === 'fulfilled') {
+                    successfulResults.push(result.value);
+                    totalUsage.promptTokens += result.value.usage.promptTokens;
+                    totalUsage.candidateTokens += result.value.usage.candidateTokens;
+                    totalUsage.totalTokens += result.value.usage.totalTokens;
+                } else {
+                    failedAnalyses.push({ sector: result.sector, criterion: result.criterion, reason: result.reason });
+                }
+            }
+            
+            if (totalUsage.totalTokens > 0) {
+                onTokenUsage({ ...totalUsage, model: currentEngine });
+            }
+
+            let finalError: string | null = null;
+            if (failedAnalyses.length > 0) {
+                const errorMessages = failedAnalyses.map(f => `Error en ${f.sector} (${f.criterion.substring(0, 20)}...): ${f.reason.message || 'Error desconocido'}`).join('; ');
+                finalError = `Algunos análisis fallaron: ${errorMessages}`;
+                failedAnalyses.forEach(f => onApiError(f.reason, `Error de Análisis de Mercado: ${f.sector}`, f.reason.message));
+            }
+
+            const groupedResults: Record<string, MarketAnalysisResultWithCriterion[]> = {};
+            successfulResults.forEach(({ data, sector, criterion }) => {
+                if (!groupedResults[sector]) groupedResults[sector] = [];
+                groupedResults[sector].push({ ...data, criterion });
+            });
+            
+            const newOpenSectors = Object.keys(groupedResults).length > 0 ? [Object.keys(groupedResults)[0]] : [];
+            
+            setAnalysisState({ isLoading: false, results: groupedResults, error: finalError, openSectors: newOpenSectors });
+
+        } catch(e) {
+            const errorMessage = e instanceof Error ? e.message : 'Ocurrió un error inesperado.';
+            onApiError(e, 'Error General de Análisis', errorMessage);
+            setAnalysisState({ isLoading: false, results: {}, error: errorMessage, openSectors: [] });
+        }
+    }, [selectedSectors, criteriaList, isApiBlocked, currentEngine, currency, onTokenUsage, onApiError, setAnalysisState]);
+
+    const handleSelectAsset = (ticker: string) => {
+        setSearchQuery(ticker);
+        setActiveView('analysis');
+    };
+
+    return (
+        <div className="mt-8">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg space-y-6">
+                <div>
+                    <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">1. Seleccionar Sectores y Bolsas</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Si no se selecciona ninguno, se analizarán todos.</p>
+                    <div className="space-y-4">
+                        <div>
+                             <h4 className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Sectores</h4>
+                            <div className="flex flex-wrap gap-2 pt-2">
+                                {SECTORS.map(sector => (
+                                    <button
+                                        key={sector}
+                                        type="button"
+                                        onClick={() => handleToggleSector(sector)}
+                                        className={`px-3 py-1.5 text-sm font-semibold rounded-full border-2 transition ${selectedSectors.includes(sector) ? 'bg-red-600 border-red-600 text-white' : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-red-500 hover:text-red-500'}`}
+                                    >{sector}</button>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                             <h4 className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Bolsas Principales</h4>
+                            <div className="flex flex-wrap gap-2 pt-2">
+                                {EXCHANGES.map(exchange => (
+                                     <button
+                                        key={exchange}
+                                        type="button"
+                                        onClick={() => handleToggleSector(exchange)}
+                                        className={`px-3 py-1.5 text-sm font-semibold rounded-full border-2 transition ${selectedSectors.includes(exchange) ? 'bg-red-600 border-red-600 text-white' : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-red-500 hover:text-red-500'}`}
+                                    >{exchange}</button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                 <div>
+                    <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">2. Definir Criterios de Análisis</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Define los criterios para el análisis. Puedes añadir más desde las sugerencias o escribir uno personalizado.</p>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">Sugerencias:</div>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                        {CRITERIA_SUGGESTIONS.map(c => (
+                            <button
+                                key={c}
+                                type="button"
+                                onClick={() => { if (!criteriaList.includes(c)) setCriteriaList(prev => [...prev, c]) }}
+                                disabled={criteriaList.includes(c)}
+                                className="px-2.5 py-1 text-xs font-semibold rounded-full border transition disabled:opacity-50 disabled:cursor-not-allowed bg-slate-50 dark:bg-slate-700/50 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-500"
+                            >
+                                + {c}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex items-center gap-2 mb-2">
+                        <input type="text" value={newCriterion} onChange={e => setNewCriterion(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCriterion()} placeholder="Ej: Mayor crecimiento de ingresos" className="flex-grow h-10 px-3 py-2 border border-slate-300 rounded-lg dark:bg-slate-900 dark:border-slate-600" />
+                        <button onClick={handleAddCriterion} className="h-10 px-4 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600">&uarr; Añadir</button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {criteriaList.map(c => (
+                            <div key={c} className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-sm font-medium pl-3 pr-1 py-1 rounded-full">
+                                <span>{c}</span>
+                                <button onClick={() => handleRemoveCriterion(c)} className="w-5 h-5 rounded-full hover:bg-red-200 dark:hover:bg-red-800/50 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">&times;</button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-center">
+                    <button 
+                        onClick={handleAnalyze} 
+                        disabled={isLoading || isApiBlocked || criteriaList.length === 0} 
+                        className="w-full sm:w-auto h-12 px-10 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-500 active:bg-red-700 transition flex items-center justify-center disabled:bg-red-300 dark:disabled:bg-red-800 disabled:cursor-not-allowed text-lg"
+                        title={criteriaList.length === 0 ? "Añade al menos un criterio para analizar" : undefined}
+                    >
+                        {isLoading ? <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="http://www.w3.org/2000/svg"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : <><i className="fas fa-search mr-3"></i>Analizar Mercado</>}
+                    </button>
+                </div>
+            </div>
+            
+            {error && <p className="mt-4 text-center text-red-600 dark:text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">{error}</p>}
+            
+            {Object.keys(analysisResults).length > 0 && (
+                <div className="mt-8">
+                    <AnalysisComparisonChart results={analysisResults} />
+
+                    <div className="space-y-4 mt-8">
+                        {Object.entries(analysisResults).map(([sector, resultsForSector]) => (
+                             <div key={sector} className="bg-slate-50 dark:bg-slate-800/50 rounded-lg transition-shadow hover:shadow-sm">
+                                <button
+                                    onClick={() => setAnalysisState(s => ({...s, openSectors: s.openSectors.includes(sector) ? s.openSectors.filter(s_ => s_ !== sector) : [...s.openSectors, sector]}))}
+                                    className="w-full flex justify-between items-center p-4 text-left bg-white dark:bg-slate-800 shadow-md rounded-lg"
+                                >
+                                    <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200">{sector}</h3>
+                                    <i className={`fas fa-chevron-down transform transition-transform ${openSectors.includes(sector) ? 'rotate-180' : ''}`}></i>
+                                </button>
+                                {openSectors.includes(sector) && (
+                                     <div className="p-4 space-y-6">
+                                        {resultsForSector.map(result => (
+                                            <div key={result.criterion}>
+                                                <h4 className="text-lg font-semibold text-slate-700 dark:text-slate-300 text-center mb-4">{result.title}</h4>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                    {result.assets.map(asset => <AssetCard key={asset.ticker} asset={asset} currency={currency} onSelect={handleSelectAsset} />)}
+                                                    <SectorAverageCard sector={sector} average={result.sectorAverage} currency={currency} />
+                                                </div>
+                                                {result.assets.length > 0 && <AssetsComparisonChart data={result.assets} currency={currency} />}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
