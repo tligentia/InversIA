@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import type { GlobalAnalysisState } from '../types';
 import { formatTextToHtml } from '../utils/formatter';
@@ -9,14 +10,15 @@ interface GlobalAnalysisProps {
     onCalculate: () => void;
     isStale: boolean;
     isApiBlocked: boolean;
-    analyzedVectorsCount: number;
+    totalAnalyzedCount: number;
+    includedAnalyzedCount: number;
     onDownloadReport: () => void;
     isAnyVectorLoading?: boolean;
 }
 
 export const GlobalAnalysis: React.FC<GlobalAnalysisProps> = ({ 
-    analysis, onCalculate, isStale, isApiBlocked, analyzedVectorsCount, 
-    onDownloadReport, isAnyVectorLoading
+    analysis, onCalculate, isStale, isApiBlocked, totalAnalyzedCount, 
+    includedAnalyzedCount, onDownloadReport, isAnyVectorLoading
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -26,8 +28,8 @@ export const GlobalAnalysis: React.FC<GlobalAnalysisProps> = ({
         if (analysis.content && !isOpen) setIsOpen(true);
     }, [analysis.content, isOpen]);
 
+    const canCalculate = includedAnalyzedCount > 0 && !analysis.isLoading;
     const isDisabled = analysis.isLoading || isApiBlocked || isAnyVectorLoading;
-    const canCalculate = analyzedVectorsCount > 0 && !analysis.isLoading;
 
     const handleToggle = () => {
         if (!analysis.content && !analysis.isLoading && canCalculate) {
@@ -43,8 +45,9 @@ export const GlobalAnalysis: React.FC<GlobalAnalysisProps> = ({
         if (isAnyVectorLoading) return "Espera a que terminen los análisis de vectores actuales.";
         if (isApiBlocked) return "Las funciones de IA están desactivadas por límite de cuota.";
         if (analysis.isLoading) return "Calculando...";
-        if (analyzedVectorsCount === 0) return "Genere al menos un análisis de vector para habilitar esta función.";
-        if (isStale) return "Actualizar la visión global con los nuevos análisis";
+        if (totalAnalyzedCount === 0) return "Genere al menos un análisis de vector para habilitar esta función.";
+        if (includedAnalyzedCount === 0) return "Seleccione al menos un vector analizado para calcular la visión global.";
+        if (isStale) return "Actualizar la visión global con los nuevos análisis o selecciones";
         return "Calcular visión global del activo";
     };
 
@@ -63,6 +66,7 @@ export const GlobalAnalysis: React.FC<GlobalAnalysisProps> = ({
                     >
                         <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200">Visión Global IA</h3>
                         {analysis.content && !analysis.isLoading && <SentimentBadge score={analysis.content.sentiment} />}
+                        {analysis.content && <span className="text-xs text-slate-500 dark:text-slate-400">(Calculado con {analysis.calculatedWithVectorCount} vectores)</span>}
                     </button>
                 </div>
                  <div className="flex items-center gap-2 flex-shrink-0">
@@ -71,7 +75,7 @@ export const GlobalAnalysis: React.FC<GlobalAnalysisProps> = ({
                         onClick={onCalculate} 
                         disabled={!canCalculate || isDisabled}
                         title={getCalculateButtonTitle()}
-                        className={`${baseButtonClasses} w-40 justify-center ${isStale && !isDisabled ? 'bg-red-100 text-red-800 border-2 border-red-400 animate-pulse-red hover:bg-red-200' : 'bg-slate-100 text-slate-700 border-2 border-transparent hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'}`}
+                        className={`${baseButtonClasses} w-44 justify-center ${isStale && !isDisabled ? 'bg-red-100 text-red-800 border-2 border-red-400 animate-pulse-red hover:bg-red-200' : 'bg-slate-100 text-slate-700 border-2 border-transparent hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'}`}
                     >
                         {analysis.isLoading ? (
                             <>
@@ -84,7 +88,7 @@ export const GlobalAnalysis: React.FC<GlobalAnalysisProps> = ({
                         ) : (
                             <>
                                <i className={`fas ${isStale ? 'fa-sync-alt' : 'fa-brain'}`}></i>
-                                <span>{isStale ? 'Actualizar' : 'Calcular'}</span>
+                                <span>{isStale ? 'Actualizar' : 'Calcular'} ({includedAnalyzedCount})</span>
                             </>
                         )}
                     </button>
@@ -119,7 +123,7 @@ export const GlobalAnalysis: React.FC<GlobalAnalysisProps> = ({
                     {analysis.error && <p className="text-red-600 dark:text-red-500">{analysis.error}</p>}
                     {!analysis.content && !analysis.isLoading && !analysis.error && 
                         <p className="text-slate-500 dark:text-slate-400 text-center py-4">
-                            {analyzedVectorsCount > 0 
+                            {totalAnalyzedCount > 0 
                                 ? "Calcula la Visión Global para obtener una tesis de inversión consolidada."
                                 : "Analiza algunos vectores para poder generar una Visión Global del activo."
                             }

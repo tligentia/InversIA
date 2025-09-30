@@ -1,8 +1,6 @@
 
-
 import React, { useState, useCallback, useMemo } from 'react';
-// FIX: The 'Line' component was not imported from 'recharts', causing a compile-time error.
-import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, BarChart, Line } from 'recharts';
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, BarChart, Line, Brush, ReferenceLine } from 'recharts';
 import type { MarketAnalysisResult, MarketAssetMetric, SectorAverage, Currency, View, MarketAnalysisState, MarketAnalysisResultWithCriterion } from '../types';
 import { analyzeMarketSector } from '../services/geminiService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -94,31 +92,61 @@ const SectorAverageCard: React.FC<{ sector: string, average: SectorAverage, curr
     </div>
 );
 
-const AssetsComparisonChart: React.FC<{ data: MarketAssetMetric[], currency: Currency }> = ({ data, currency }) => {
+const CustomAssetTooltip = ({ active, payload, label, currency }: any) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="p-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg text-sm">
+                <p className="font-bold text-slate-800 dark:text-slate-200 mb-2">{label}</p>
+                {payload.map((p: any) => (
+                    <div key={p.name} className="flex justify-between items-center gap-4">
+                        <span style={{ color: p.stroke || p.fill }}>{p.name}:</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {p.name === 'BPA' ? `${p.value.toFixed(2)} ${currency}` : ''}
+                            {p.name === 'Ratio P/E' ? p.value.toFixed(2) : ''}
+                            {p.name.includes('Dividendo') ? `${p.value.toFixed(2)}%` : ''}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+    return null;
+};
+
+const AssetsComparisonChart: React.FC<{ data: MarketAssetMetric[], currency: Currency, sectorAverage: SectorAverage }> = ({ data, currency, sectorAverage }) => {
+    const avgDividendYield = sectorAverage.averageDividendYield;
     return (
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg mt-8">
             <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-4">Comparación de Métricas de Activos</h3>
             <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={data} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                    <ComposedChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                         <defs>
+                            <linearGradient id="colorBpa" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                            </linearGradient>
+                            <linearGradient id="colorPe" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="#ef4444" stopOpacity={0.2}/>
+                            </linearGradient>
+                        </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-700" />
                         <XAxis dataKey="ticker" tick={{ fontSize: 12 }} />
-                        <YAxis yAxisId="left" label={{ value: `Valor (${currency})`, angle: -90, position: 'insideLeft', offset: -5 }} tick={{ fontSize: 10 }} />
-                        <YAxis yAxisId="right" orientation="right" label={{ value: 'Rendimiento de Dividendo (%)', angle: -90, position: 'insideRight', offset: 10 }} tick={{ fontSize: 10 }} />
-                        <Tooltip
-                            contentStyle={{
-                                backgroundColor: document.documentElement.classList.contains('dark') ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-                                backdropFilter: 'blur(5px)',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '0.5rem',
-                                color: document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#334155'
-                            }}
-                            labelStyle={{ fontWeight: 'bold' }}
-                        />
+                        <YAxis yAxisId="left" label={{ value: `BPA (${currency})`, angle: -90, position: 'insideLeft', offset: 10 }} tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="middle" orientation="left" hide={true} />
+                        <YAxis yAxisId="right" orientation="right" label={{ value: 'Ratio P/E | Div. (%)', angle: -90, position: 'insideRight', offset: 10 }} tick={{ fontSize: 10 }} />
+                        <Tooltip content={<CustomAssetTooltip currency={currency} />} />
                         <Legend />
-                        <Bar yAxisId="left" dataKey="eps" name="BPA" fill="#3b82f6" />
-                        <Bar yAxisId="left" dataKey="peRatio" name="Ratio P/E" fill="#ef4444" />
+                        <Bar yAxisId="left" dataKey="eps" name="BPA" fill="url(#colorBpa)" />
+                        <Bar yAxisId="right" dataKey="peRatio" name="Ratio P/E" fill="url(#colorPe)" />
                         <Line yAxisId="right" type="monotone" dataKey="dividendYield" name="Rendimiento de Dividendo (%)" stroke="#16a34a" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                        {avgDividendYield > 0 && (
+                             <ReferenceLine yAxisId="right" y={avgDividendYield} label={{ value: `Promedio Div. (${avgDividendYield.toFixed(2)}%)`, position: 'insideTopLeft' }} stroke="#16a34a" strokeDasharray="3 3" />
+                        )}
+                        {data.length > 5 && (
+                            <Brush dataKey="ticker" height={30} stroke="#8884d8" />
+                        )}
                     </ComposedChart>
                 </ResponsiveContainer>
             </div>
@@ -126,10 +154,30 @@ const AssetsComparisonChart: React.FC<{ data: MarketAssetMetric[], currency: Cur
     );
 };
 
+const CustomAnalysisTooltip = ({ active, payload, label }: any) => {
+     if (active && payload && payload.length) {
+        return (
+            <div className="p-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg text-sm">
+                <p className="font-bold text-slate-800 dark:text-slate-200 mb-2">{label}</p>
+                {payload.map((p: any) => (
+                    <div key={p.name} className="flex justify-between items-center gap-4">
+                        <span style={{ color: p.fill }}>{p.name}:</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                           {p.name.includes('Dividendo') ? `${p.value.toFixed(2)}%` : p.value.toFixed(2)}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+    return null;
+}
+
 const AnalysisComparisonChart: React.FC<{ results: Record<string, MarketAnalysisResultWithCriterion[]> }> = ({ results }) => {
     const chartData = useMemo(() => {
         return Object.entries(results).flatMap(([sector, analyses]) =>
-            analyses.map(analysis => ({
+            // FIX: Ensure 'analyses' is an array before calling .map() to prevent type errors.
+            (Array.isArray(analyses) ? analyses : []).map(analysis => ({
                 name: `${sector} (${analysis.criterion.substring(0, 15)}...)`,
                 peRatio: analysis.sectorAverage.averagePeRatio,
                 dividendYield: analysis.sectorAverage.averageDividendYield,
@@ -149,16 +197,7 @@ const AnalysisComparisonChart: React.FC<{ results: Record<string, MarketAnalysis
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-700" />
                         <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-25} textAnchor="end" height={60} />
                         <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip
-                             contentStyle={{
-                                backgroundColor: document.documentElement.classList.contains('dark') ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-                                backdropFilter: 'blur(5px)',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '0.5rem',
-                                color: document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#334155'
-                            }}
-                            labelStyle={{ fontWeight: 'bold' }}
-                        />
+                        <Tooltip content={<CustomAnalysisTooltip />} />
                         <Legend />
                         <Bar dataKey="peRatio" name="Ratio P/E Promedio" fill="#ef4444" />
                         <Bar dataKey="dividendYield" name="Dividendo Promedio (%)" fill="#16a34a" />
@@ -331,7 +370,8 @@ export const MarketView: React.FC<MarketViewProps> = ({ currentEngine, onTokenUs
                         <button onClick={handleAddCriterion} className="h-10 px-4 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600">&uarr; Añadir</button>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        {criteriaList.map(c => (
+                        {/* FIX: Ensure 'criteriaList' is an array before calling .map() to prevent type errors. */}
+                        {(Array.isArray(criteriaList) ? criteriaList : []).map(c => (
                             <div key={c} className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-sm font-medium pl-3 pr-1 py-1 rounded-full">
                                 <span>{c}</span>
                                 <button onClick={() => handleRemoveCriterion(c)} className="w-5 h-5 rounded-full hover:bg-red-200 dark:hover:bg-red-800/50 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">&times;</button>
@@ -369,14 +409,14 @@ export const MarketView: React.FC<MarketViewProps> = ({ currentEngine, onTokenUs
                                 </button>
                                 {openSectors.includes(sector) && (
                                      <div className="p-4 space-y-6">
-                                        {resultsForSector.map(result => (
+                                        {(Array.isArray(resultsForSector) ? resultsForSector : []).map(result => (
                                             <div key={result.criterion}>
                                                 <h4 className="text-lg font-semibold text-slate-700 dark:text-slate-300 text-center mb-4">{result.title}</h4>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                    {result.assets.map(asset => <AssetCard key={asset.ticker} asset={asset} currency={currency} onSelect={handleSelectAsset} />)}
+                                                    {(result.assets || []).map(asset => <AssetCard key={asset.ticker} asset={asset} currency={currency} onSelect={handleSelectAsset} />)}
                                                     <SectorAverageCard sector={sector} average={result.sectorAverage} currency={currency} />
                                                 </div>
-                                                {result.assets.length > 0 && <AssetsComparisonChart data={result.assets} currency={currency} />}
+                                                {result.assets.length > 0 && <AssetsComparisonChart data={result.assets} currency={currency} sectorAverage={result.sectorAverage} />}
                                             </div>
                                         ))}
                                     </div>

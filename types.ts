@@ -33,17 +33,6 @@ export interface Asset {
     investingUrl?: string;
 }
 
-export interface StockData {
-    date: string;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-}
-
-export type Period = '1D' | '1W' | '1M' | 'YTD' | '1Y' | '2Y' | '5Y';
-
 export interface Source {
     uri: string;
     title: string;
@@ -56,7 +45,7 @@ export interface AnalysisContent {
 }
 
 export interface AiAnswer {
-    summary: string;
+    summary:string;
     fullText: string;
     sources?: Source[];
 }
@@ -77,6 +66,7 @@ export interface AnalysisVector {
     error: string | null;
     sources?: Source[];
     isCustom?: boolean;
+    isIncludedInGlobal?: boolean;
 }
 
 export interface HistoryItem {
@@ -109,9 +99,22 @@ export interface ReportData {
     analyses: AnalysisVector[];
 }
 
-export type View = 'analysis' | 'market' | 'portfolio' | 'calculator' | 'alternatives' | 'chat' | 'history' | 'settings' | 'cookie-policy';
+export type View = 'analysis' | 'market' | 'portfolio' | 'calculator' | 'alternatives' | 'chat' | 'history' | 'settings' | 'cookie-policy' | 'charts';
 export type Theme = 'light' | 'dark' | 'system';
 export type Currency = 'EUR' | 'USD' | 'GBP' | 'JPY' | 'CAD';
+
+// FIX: Add missing Period type definition for chart period selection.
+export type Period = '1D' | '1W' | '1M' | 'YTD' | '1Y' | '2Y' | '5Y';
+
+// FIX: Add missing StockData interface definition for charting components.
+export interface StockData {
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+}
 
 export interface CalculatorState {
     investment: string;
@@ -127,9 +130,9 @@ export interface AnalysisSession {
     asset: Asset;
     isInitializing: boolean;
     initializationError?: string | null;
-    stockData: StockData[];
     currentPrice: number | null;
-    currentPeriod: Period;
+    changeValue: number | null;
+    changePercentage: number | null;
     analysisVectors: AnalysisVector[];
     globalAnalysis: GlobalAnalysisState;
     alternativeAssets: Asset[];
@@ -181,6 +184,12 @@ export interface PortfolioItem {
     quantity: number;
     purchasePrice: number;
     purchaseDate: string;
+}
+
+export interface Portfolio {
+    id: string;
+    name: string;
+    items: PortfolioItem[];
 }
 
 export interface PortfolioItemWithMarketData extends PortfolioItem {

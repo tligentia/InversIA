@@ -1,9 +1,9 @@
-
-import { useState, useEffect, useContext } from 'react';
+// FIX: Import Dispatch and SetStateAction from react to be used in the hook's return type.
+import { useState, useEffect, useContext, Dispatch, SetStateAction } from 'react';
 import { useCookieConsent } from '../context/CookieConsentContext';
 import { LOCAL_STORAGE_COOKIE_MAP, CookieCategory } from '../constants/cookieConfig';
 
-export function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+export function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<SetStateAction<T>>] {
     const { consent } = useCookieConsent();
     
     const getCategory = (k: string): CookieCategory => LOCAL_STORAGE_COOKIE_MAP[k] ?? 'functional';

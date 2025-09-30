@@ -1,10 +1,11 @@
 import React from 'react';
-import type { Asset, StockData, Currency } from '../types';
+import type { Asset, Currency } from '../types';
 
 interface AssetHeaderProps {
     asset: Asset;
-    stockData: StockData[];
     currentPrice: number | null;
+    changeValue: number | null;
+    changePercentage: number | null;
     currency: Currency;
     onSendToPortfolio?: (asset: Asset, price: number | null) => void;
 }
@@ -26,19 +27,7 @@ const platforms = [
 ];
 
 
-export const AssetHeader: React.FC<AssetHeaderProps> = ({ asset, stockData, currentPrice, currency, onSendToPortfolio }) => {
-    
-    const displayPrice = currentPrice !== null ? currentPrice : (stockData.length > 0 ? stockData[stockData.length - 1].close : null);
-    const previousPrice = stockData.length > 1 ? stockData[stockData.length - 2].close : displayPrice;
-    
-    let changeValue: number | null = null;
-    let changePercentage: number | null = null;
-
-    if (displayPrice !== null && previousPrice !== null && previousPrice !== 0) {
-        changeValue = displayPrice - previousPrice;
-        changePercentage = (changeValue / previousPrice) * 100;
-    }
-    
+export const AssetHeader: React.FC<AssetHeaderProps> = ({ asset, currentPrice, changeValue, changePercentage, currency, onSendToPortfolio }) => {
     const isPositive = changeValue !== null && changeValue >= 0;
 
     return (
@@ -55,7 +44,7 @@ export const AssetHeader: React.FC<AssetHeaderProps> = ({ asset, stockData, curr
                     {onSendToPortfolio && (
                         <button
                             type="button"
-                            onClick={() => onSendToPortfolio(asset, displayPrice)}
+                            onClick={() => onSendToPortfolio(asset, currentPrice)}
                             className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-500 transition-colors duration-150 p-2 rounded-full"
                             title="Añadir a la cartera"
                             aria-label="Añadir a la cartera"
@@ -67,9 +56,9 @@ export const AssetHeader: React.FC<AssetHeaderProps> = ({ asset, stockData, curr
                 
                 {/* Col 3: Price */}
                 <div className="row-span-2 col-start-3 text-right">
-                    {displayPrice !== null && (
+                    {currentPrice !== null ? (
                         <>
-                            <p className="text-3xl font-semibold text-slate-900 dark:text-slate-100">{displayPrice.toLocaleString('es-ES', { style: 'currency', currency: currency })}</p>
+                            <p className="text-3xl font-semibold text-slate-900 dark:text-slate-100">{currentPrice.toLocaleString('es-ES', { style: 'currency', currency: currency })}</p>
                             {changeValue !== null && changePercentage !== null && (
                                 <div className={`flex items-center justify-end gap-2 text-lg font-medium ${isPositive ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
                                     {isPositive ? <i className="fas fa-arrow-trend-up"></i> : <i className="fas fa-arrow-trend-down"></i>}
@@ -77,6 +66,8 @@ export const AssetHeader: React.FC<AssetHeaderProps> = ({ asset, stockData, curr
                                 </div>
                             )}
                         </>
+                    ) : (
+                         <p className="text-3xl font-semibold text-slate-400 dark:text-slate-500">Cargando...</p>
                     )}
                 </div>
 

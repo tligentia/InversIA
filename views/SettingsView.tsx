@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { EngineSelector } from '../components/EngineSelector';
-import type { Theme, View, TokenUsageRecord, Currency, PortfolioItem, AppError } from '../types';
+import type { Theme, View, TokenUsageRecord, Currency, Portfolio, PortfolioItem } from '../types';
 import { TRUSTED_IPS } from '../constants';
 import { TokenAccountingTable } from '../components/TokenAccountingTable';
 import { getAssetInfo } from '../services/geminiService';
@@ -20,7 +19,7 @@ interface SettingsViewProps {
     tokenUsageHistory: TokenUsageRecord[];
     onClearAccountingHistory: () => void;
     currency: Currency;
-    setPortfolio: React.Dispatch<React.SetStateAction<PortfolioItem[]>>;
+    onImportPortfolio: (items: PortfolioItem[], portfolioName: string) => void;
     onTokenUsage: (usage: { promptTokens: number; candidateTokens: number; totalTokens: number; model: string; }) => void;
     onApiError: (e: unknown, title: string, message: string) => void;
 }
@@ -88,7 +87,7 @@ const parseInvestingNumber = (numStr: string): number => {
 export const SettingsView: React.FC<SettingsViewProps> = ({
     availableEngines, currentEngine, onEngineChange, isApiBlocked, isBusy, onClearAllData,
     apiKey, setApiKey, userIp, setActiveView, tokenUsageHistory, onClearAccountingHistory, currency,
-    setPortfolio, onTokenUsage, onApiError
+    onImportPortfolio, onTokenUsage, onApiError
 }) => {
     const [keyInput, setKeyInput] = useState('');
     const [saveMessage, setSaveMessage] = useState('');
@@ -253,11 +252,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             
             const tickerPromises = uniqueTickers.map(async (ticker) => {
                 try {
-                    const { data, usage } = await getAssetInfo(ticker, currentEngine);
+                    const { data, usage } = await getAssetInfo(String(ticker), currentEngine);
                     if (usage.totalTokens > 0) onTokenUsage({ ...usage, model: currentEngine });
                     if (data && data.length > 0) {
-                        const match = data.find(d => d.ticker.toLowerCase() === ticker.toLowerCase()) || data[0];
-                        assetTypeMap.set(ticker, match.type);
+                        const match = data.find(d => d.ticker.toLowerCase() === String(ticker).toLowerCase()) || data[0];
+                        assetTypeMap.set(String(ticker), match.type);
                     }
                 } catch (e) {
                     console.warn(`No se pudo obtener información para el ticker ${ticker}`, e);
@@ -273,26 +272,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             setImportStatus(`Procesados ${importedItems.length} de ${parsedRows.length} registros. Actualizando cartera...`);
             
-            setPortfolio(prevPortfolio => {
-                const portfolioCopy = [...prevPortfolio];
-                importedItems.forEach(newItem => {
-                    const existingIndex = portfolioCopy.findIndex(p => p.ticker.toLowerCase() === newItem.ticker.toLowerCase());
-                    if (existingIndex > -1) {
-                        const existingItem = portfolioCopy[existingIndex];
-                        const totalQuantity = existingItem.quantity + newItem.quantity;
-                        const newAvgPrice = ((existingItem.quantity * existingItem.purchasePrice) + (newItem.quantity * newItem.purchasePrice)) / totalQuantity;
-                        portfolioCopy[existingIndex] = {
-                            ...existingItem,
-                            quantity: totalQuantity,
-                            purchasePrice: newAvgPrice,
-                            purchaseDate: newItem.purchaseDate > existingItem.purchaseDate ? newItem.purchaseDate : existingItem.purchaseDate,
-                        };
-                    } else {
-                        portfolioCopy.push(newItem);
-                    }
-                });
-                return portfolioCopy;
-            });
+            onImportPortfolio(importedItems, importFile?.name.replace(/\.csv$/i, '') || 'Cartera Importada');
             
             setImportStatus(`¡Éxito! ${importedItems.length} registros importados. Tu cartera ha sido actualizada.`);
             setImportFile(null);

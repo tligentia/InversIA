@@ -37,7 +37,8 @@ export const HistoryList: React.FC<HistoryListProps> = React.memo(({ groupedHist
                      <div key={groupTitle}>
                         <h4 className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider pb-2 mb-2 border-b border-slate-200 dark:border-slate-700">{groupTitle}</h4>
                         <ul className="divide-y divide-slate-100 dark:divide-slate-700">
-                            {items.map(item => (
+                            {/* FIX: Ensure 'items' is an array before calling .map() to prevent type errors. */}
+                            {(Array.isArray(items) ? items : []).map(item => (
                                 <li key={item.ticker}>
                                     <button
                                         type="button"
@@ -50,6 +51,7 @@ export const HistoryList: React.FC<HistoryListProps> = React.memo(({ groupedHist
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-bold text-slate-900 dark:text-slate-100 truncate" title={item.name}>{item.name}</p>
+
                                                     <SentimentBadge score={item.sentiment} />
                                                 </div>
                                                 <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">

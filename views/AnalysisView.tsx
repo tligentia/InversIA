@@ -1,10 +1,7 @@
-
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AssetSelection } from '../components/AssetSelection';
 import { AnalysisSection } from '../components/AnalysisSection';
-import { getAssetAnalysis, getAnalysisVectorsForAsset, getAssetCurrentPrice, getGlobalAnalysis } from '../services/geminiService';
-import { generateAssetData } from '../services/stockDataService';
+import { getAssetAnalysis, getAnalysisVectorsForAsset, getAssetQuote, getGlobalAnalysis } from '../services/geminiService';
 import { Asset, HistoryItem, AnalysisVector, AppError, ReportData, AnalysisSession, GlobalAnalysisState, Currency } from '../types';
 import { ExportModal } from '../components/ExportModal';
 import { GlobalAnalysis } from '../components/GlobalAnalysis';
@@ -53,6 +50,11 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
         if (!activeSession) return 0;
         return activeSession.analysisVectors.filter(v => v.content).length;
     }, [activeSession]);
+    
+    const includedAnalyzedCount = useMemo(() => {
+        if (!activeSession) return 0;
+        return activeSession.analysisVectors.filter(v => v.content && (v.isIncludedInGlobal ?? true)).length;
+    }, [activeSession]);
 
     const isAnyVectorLoading = useMemo(() => {
         if (!activeSession) return false;
@@ -66,20 +68,22 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
 
         const initialize = async (session: AnalysisSession) => {
             try {
-                const { data: priceData, usage: priceUsage } = await getAssetCurrentPrice(session.asset, currentEngine, currency);
+                const { data: quoteData, usage: priceUsage } = await getAssetQuote(session.asset, currentEngine, currency);
                 onTokenUsage({ ...priceUsage, model: currentEngine });
-                const realPrice = priceData?.price ?? (session.asset.type === 'crypto' ? 50000 : 150);
                 
-                const newData = generateAssetData(session.currentPeriod, session.asset.type, realPrice);
-                
-                const previousPrice = newData.length > 1 ? newData[newData.length - 2].close : realPrice;
-                const change = realPrice - previousPrice;
-                const changePercentage = previousPrice !== 0 ? (change / previousPrice) * 100 : 0;
+                if (!quoteData) {
+                    throw new Error(`No se pudo obtener la cotización para ${session.asset.ticker}.`);
+                }
 
+                const { price, changeValue, changePercentage } = quoteData;
+                
                 const newHistoryItem: HistoryItem = {
                     name: session.asset.name, ticker: session.asset.ticker, type: session.asset.type,
-                    lastClose: realPrice, change: change, changePercentage: changePercentage,
-                    date: new Date().toLocaleDateString('es-ES'), sentiment: 0,
+                    lastClose: price, 
+                    change: changeValue, 
+                    changePercentage: changePercentage,
+                    date: new Date().toLocaleDateString('es-ES'), 
+                    sentiment: 0,
                 };
                 setHistory(prevHistory => {
                     const filteredHistory = prevHistory.filter(item => item.ticker !== newHistoryItem.ticker);
@@ -90,7 +94,7 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
                 onTokenUsage({ ...vectorUsage, model: currentEngine });
 
                 const defaultVectors: AnalysisVector[] = vectors
-                    ? vectors.map(title => ({ title, content: null, isLoading: false, error: null, sources: [] }))
+                    ? vectors.map(title => ({ title, content: null, isLoading: false, error: null, sources: [], isIncludedInGlobal: true }))
                     : [];
                 
                 let savedCustomVectorTitles: string[] = [];
@@ -101,12 +105,13 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
                 
                 const customVectors: AnalysisVector[] = savedCustomVectorTitles
                     .filter(title => !defaultVectors.some(v => v.title.toLowerCase() === title.toLowerCase()))
-                    .map(title => ({ title, content: null, isLoading: false, error: null, sources: [], isCustom: true }));
+                    .map(title => ({ title, content: null, isLoading: false, error: null, sources: [], isCustom: true, isIncludedInGlobal: true }));
                 
                 updateSession(session.id, {
                     isInitializing: false,
-                    currentPrice: realPrice,
-                    stockData: newData,
+                    currentPrice: price,
+                    changeValue: changeValue,
+                    changePercentage: changePercentage,
                     analysisVectors: [...defaultVectors, ...customVectors],
                     initializationError: null,
                 });
@@ -216,8 +221,8 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
         });
 
         try {
-            const analysesContext = analysisVectors
-                .filter(v => v.content)
+            const includedAndAnalyzedVectors = analysisVectors.filter(v => v.content && (v.isIncludedInGlobal ?? true));
+            const analysesContext = includedAndAnalyzedVectors
                 .map(v => `## ${v.title}\n${v.content!.fullText}`).join('\n\n');
             
             const { data: globalData, usage } = await getGlobalAnalysis(asset, analysesContext, currentEngine);
@@ -228,7 +233,7 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
                 sources: globalData.sources,
                 isLoading: false,
                 error: null,
-                calculatedWithVectorCount: analyzedVectorsCount,
+                calculatedWithVectorCount: includedAndAnalyzedVectors.length,
             };
             updateSession(sessionId, { globalAnalysis: newGlobalAnalysisState });
 
@@ -260,13 +265,24 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
 
         const newVector: AnalysisVector = { 
             title: newVectorTitle, content: null, isLoading: false, error: null, 
-            sources: [], isCustom: true 
+            sources: [], isCustom: true, isIncludedInGlobal: true
         };
         
         updateSession(activeSession.id, { analysisVectors: [...activeSession.analysisVectors, newVector] });
         handleRunSingleAnalysis(newVectorTitle);
         setCustomVector('');
     };
+    
+    const handleToggleVectorInclusion = useCallback((vectorTitle: string) => {
+        if (!activeSession) return;
+        
+        const updatedVectors = activeSession.analysisVectors.map(v =>
+            v.title === vectorTitle
+                ? { ...v, isIncludedInGlobal: !(v.isIncludedInGlobal ?? true) }
+                : v
+        );
+        updateSession(activeSession.id, { analysisVectors: updatedVectors });
+    }, [activeSession, updateSession]);
 
     const handleDeleteCustomVector = useCallback((titleToDelete: string) => {
         if (!activeSession) return;
@@ -308,6 +324,15 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
         setIsExportModalOpen(true);
     };
 
+    const isGlobalAnalysisStale = useMemo(() => {
+        if (!activeSession || !activeSession.globalAnalysis.content) return false;
+        
+        const lastUsedCount = activeSession.globalAnalysis.calculatedWithVectorCount ?? 0;
+        
+        // Stale if a new vector has been analyzed OR if the number of included vectors for calculation has changed.
+        return analyzedVectorsCount > lastUsedCount || includedAnalyzedCount !== lastUsedCount;
+    }, [activeSession, analyzedVectorsCount, includedAnalyzedCount]);
+
 
     if (suggestedAssets) {
         return (
@@ -342,9 +367,10 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
                                     <GlobalAnalysis
                                         analysis={activeSession.globalAnalysis}
                                         onCalculate={handleCalculateGlobalAnalysis}
-                                        isStale={analyzedVectorsCount > (activeSession.globalAnalysis.calculatedWithVectorCount ?? 0)}
+                                        isStale={isGlobalAnalysisStale}
                                         isApiBlocked={isQuotaExhausted}
-                                        analyzedVectorsCount={analyzedVectorsCount}
+                                        totalAnalyzedCount={analyzedVectorsCount}
+                                        includedAnalyzedCount={includedAnalyzedCount}
                                         onDownloadReport={handleOpenExportModal}
                                         isAnyVectorLoading={isAnyVectorLoading}
                                     />
@@ -381,6 +407,7 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
                                                     vector={vector}
                                                     onAnalyze={() => handleRunSingleAnalysis(vector.title)}
                                                     onDelete={handleDeleteCustomVector}
+                                                    onToggleInclusion={() => handleToggleVectorInclusion(vector.title)}
                                                     isApiBlocked={isQuotaExhausted}
                                                 />
                                             ))}

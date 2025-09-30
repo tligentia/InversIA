@@ -30,44 +30,51 @@ interface GeminiResponse<T> {
 }
 
 function handleGeminiError(error: unknown, defaultMessage: string, model: string): Error {
-    console.error("Gemini API Error:", error);
+    console.error(`Gemini API Error in function calling model '${model}':`, error);
+
+    // Handle our custom, pre-emptive error for missing API key
     if (error instanceof ApiKeyNotSetError) {
         return error;
     }
+
+    // Handle network errors (e.g., offline)
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+        return new Error("Error de red. Por favor, comprueba tu conexión a internet e inténtalo de nuevo.");
+    }
+
+    // Handle specific error classes we've defined
+    if (error instanceof AnomalousPriceError) {
+        return error;
+    }
+
     if (error instanceof Error) {
-        // Prioritize checking for the RESOURCE_EXHAUSTED string, as the error format isn't always a clean JSON.
-        // This makes quota detection more robust.
-        if (error.message.includes("RESOURCE_EXHAUSTED")) {
-            const quotaMessage = `Se ha excedido la cuota de uso para el motor de IA '${model}'. Por favor, revisa tu plan y los detalles de facturación para poder continuar.`;
+        const errorMessage = error.message.toLowerCase();
+
+        // Check for common, critical error messages from the API/SDK
+        if (errorMessage.includes("resource_exhausted") || errorMessage.includes("quota")) {
+            const quotaMessage = `Se ha excedido la cuota de uso para el motor de IA '${model}'. Por favor, revisa tu plan y los detalles de facturación en tu cuenta de Google AI Studio para poder continuar.`;
             return new QuotaExceededError(quotaMessage, model);
         }
 
-        if (error.message.includes("API key not valid")) {
-             return new Error(`La clave API de Gemini proporcionada no es válida. Por favor, revísala en la sección de Ajustes.`);
+        if (errorMessage.includes("api key not valid") || errorMessage.includes("permission_denied")) {
+            return new Error(`La clave API de Gemini proporcionada no es válida o no tiene los permisos necesarios. Por favor, revísala en la sección de Ajustes. Puedes obtener una nueva clave en Google AI Studio.`);
         }
 
-        if (error.message.includes("NOT_FOUND") || error.message.includes("404")) {
+        if (errorMessage.includes("not_found") || errorMessage.includes("404")) {
             return new Error(`El motor de IA '${model}' no fue encontrado o no está disponible. Por favor, selecciona otro motor si es posible.`);
         }
-        try {
-            // Gemini SDK often wraps API errors in a JSON string message
-            const errorJson = JSON.parse(error.message);
-            if (errorJson.error) {
-                const { message, status } = errorJson.error;
-                // This check is now a fallback in case the string isn't in the top-level message.
-                if (status === "RESOURCE_EXHAUSTED") {
-                    const quotaMessage = `Se ha excedido la cuota de uso para el motor de IA '${model}'. Por favor, revisa tu plan y los detalles de facturación para poder continuar.`;
-                    return new QuotaExceededError(quotaMessage, model);
-                }
-                return new Error(message || defaultMessage);
-            }
-        } catch (e) {
-            // Not a JSON error message, return the original error if it's meaningful
-            if (!error.message.includes('JSON')) {
-                 return error;
-            }
+
+        if (errorMessage.includes("invalid argument")) {
+             return new Error(`La solicitud a la API contenía un argumento no válido. Esto puede ser un error interno. Por favor, intenta reformular tu petición. Detalles: ${error.message}`);
+        }
+        
+        // Return a cleaner version of the original error if it's somewhat understandable
+        if (!errorMessage.includes('json') && !errorMessage.includes('internal')) {
+             return new Error(`La API ha devuelto un error: ${error.message}`);
         }
     }
+
+    // Fallback for unexpected or generic errors
     return new Error(defaultMessage);
 }
 
@@ -136,35 +143,32 @@ function safeJsonParse<T>(jsonString: string, functionName: string): T {
 }
 
 function cleanAndParseJson<T>(text: string, functionName: string): T {
-    let jsonText = text.trim();
+    // Trim whitespace and remove markdown fences.
+    let jsonText = text.trim().replace(/^```json\s*/, '').replace(/```$/, '').trim();
 
-    // Aggressively find the main JSON object or array. This is more robust against
-    // issues like missing markdown fences or extra text returned by the model.
-    const firstBrace = jsonText.indexOf('{');
-    const firstBracket = jsonText.indexOf('[');
-    let start = -1;
+    // If after stripping markdown, it doesn't look like JSON, try to find the JSON object within the text.
+    if (!jsonText.startsWith('{') && !jsonText.startsWith('[')) {
+        const firstBrace = text.indexOf('{');
+        const firstBracket = text.indexOf('[');
+        let start = -1;
 
-    // Find the earliest start of a JSON object or array.
-    if (firstBrace === -1) {
-        start = firstBracket;
-    } else if (firstBracket === -1) {
-        start = firstBrace;
-    } else {
-        start = Math.min(firstBrace, firstBracket);
-    }
-
-    if (start !== -1) {
-        // Find the corresponding last brace or bracket.
-        const lastBrace = jsonText.lastIndexOf('}');
-        const lastBracket = jsonText.lastIndexOf(']');
-        const end = Math.max(lastBrace, lastBracket);
-
-        if (end > start) {
-            // Extract the substring that looks like a JSON object/array.
-            jsonText = jsonText.substring(start, end + 1);
+        if (firstBrace === -1) {
+            start = firstBracket;
+        } else if (firstBracket === -1) {
+            start = firstBrace;
+        } else {
+            start = Math.min(firstBrace, firstBracket);
         }
-        // If we can't find a valid end, we'll just pass the (potentially malformed)
-        // string to safeJsonParse and let it handle the error.
+
+        if (start !== -1) {
+            const lastBrace = text.lastIndexOf('}');
+            const lastBracket = text.lastIndexOf(']');
+            const end = Math.max(lastBrace, lastBracket);
+
+            if (end > start) {
+                jsonText = text.substring(start, end + 1);
+            }
+        }
     }
     
     return safeJsonParse<T>(jsonText, functionName);
@@ -550,7 +554,7 @@ async function _getAssetPrice(
     date: string,
     engine: string,
     currency: Currency,
-    type: 'historical' | 'future' | 'current',
+    type: 'historical' | 'future',
     currentPriceForAnomalyCheck: number | null
 ): Promise<GeminiResponse<{ price: number | null; currency: string } | null>> {
 
@@ -559,18 +563,6 @@ async function _getAssetPrice(
     let functionName: string;
     
     switch (type) {
-        case 'current':
-            functionName = 'getAssetCurrentPrice';
-            systemInstruction = "Eres un API de consulta de precios. Tu única respuesta es un objeto JSON con el precio y la moneda.";
-            prompt = `**Tarea Crítica**: Actúa como un API JSON que devuelve el precio de un activo.
-**Activo**: "${asset.name}" (${asset.ticker})
-**Instrucciones**:
-1. Usa la búsqueda web para encontrar el precio más reciente del activo.
-2. Tu respuesta debe ser *exclusivamente* un objeto JSON válido. NO incluyas explicaciones, saludos, ni texto adicional.
-3. El JSON debe contener dos claves: 'price' (un número) y 'currency' (un string con el código de 3 letras, **OBLIGATORIAMENTE "${currency.toUpperCase()}"**).
-**Respuesta (JSON Válido Solamente)**:`;
-            break;
-
         case 'historical':
             functionName = 'getAssetPriceOnDate';
             systemInstruction = "Eres un API de consulta de precios históricos. Tu única respuesta es un objeto JSON con el precio y la moneda.";
@@ -645,12 +637,45 @@ async function _getAssetPrice(
     }
 }
 
-export async function getAssetCurrentPrice(asset: Asset, engine: string, currency: Currency): Promise<GeminiResponse<{ price: number; currency: string } | null>> {
-    const result = await _getAssetPrice(asset, '', engine, currency, 'current', null);
-    if (result.data && typeof result.data.price !== 'number') {
-        throw new Error("La API no devolvió un precio actual válido.");
+export async function getAssetQuote(asset: Asset, engine: string, currency: Currency): Promise<GeminiResponse<{ price: number; changeValue: number; changePercentage: number; currency: string } | null>> {
+    const prompt = `**Tarea Crítica**: Actúa como un API JSON. Tu única respuesta es un objeto JSON.
+**Activo**: "${asset.name}" (${asset.ticker})
+**Instrucciones**:
+1. Usa la búsqueda web para encontrar la cotización de mercado más reciente del activo.
+2. Tu respuesta debe ser *exclusivamente* un objeto JSON válido.
+3. El JSON debe contener: 'price' (número), 'changeValue' (número, cambio numérico del día, p.ej. -1.25), 'changePercentage' (número, cambio porcentual del día, p.ej. -0.85 para -0.85%), y 'currency' (string, **OBLIGATORIAMENTE "${currency.toUpperCase()}"**).
+**Respuesta (JSON Válido Solamente)**:`;
+
+    try {
+        const client = getClient();
+        const response = await client.models.generateContent({
+            model: engine,
+            contents: prompt,
+            config: {
+                tools: [{ googleSearch: {} }],
+                systemInstruction: "Eres un API de consulta de precios. Tu única respuesta es un objeto JSON con la cotización completa.",
+                temperature: 0,
+            }
+        });
+        const usageMetadata = response.usageMetadata;
+        const usage: TokenUsage = {
+            promptTokens: usageMetadata?.promptTokenCount ?? 0,
+            candidateTokens: usageMetadata?.candidatesTokenCount ?? 0,
+            totalTokens: usageMetadata?.totalTokenCount ?? 0,
+        };
+        const text = response.text.trim();
+        if (!text) throw new Error("La API no devolvió una cotización.");
+
+        const quoteData = cleanAndParseJson<{ price: number; changeValue: number; changePercentage: number; currency: string }>(text, 'getAssetQuote');
+        
+        if (quoteData && typeof quoteData.price === 'number') {
+            return { data: quoteData, usage };
+        } else {
+             throw new Error("La API devolvió un formato de cotización no válido.");
+        }
+    } catch (error) {
+        throw handleGeminiError(error, "No se pudo obtener la cotización del activo.", engine);
     }
-    return result as GeminiResponse<{ price: number; currency: string } | null>;
 }
 
 export async function getAssetPriceOnDate(asset: Asset, date: string, engine: string, currentPrice: number | null, currency: Currency): Promise<GeminiResponse<{ price: number | null; currency: string } | null>> {

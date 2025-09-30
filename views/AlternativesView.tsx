@@ -1,5 +1,3 @@
-
-
 import React, { useCallback } from 'react';
 import { AlternativeCompanies } from '../components/AlternativeCompanies';
 import type { AnalysisSession, Asset, Currency } from '../types';

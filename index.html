@@ -32,6 +32,13 @@
   .animate-pulse-red {
       animation: pulse-red 2s infinite;
   }
+  @keyframes pulse-active {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+  .animate-pulse-active {
+    animation: pulse-active 2s ease-in-out infinite;
+  }
 </style>
 <script type="importmap">
 {
@@ -40,11 +47,11 @@
     "react": "https://esm.sh/react@^19.1.0",
     "@google/genai": "https://esm.sh/@google/genai@^1.10.0",
     "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
-    "recharts": "https://esm.sh/recharts@^3.1.0",
     "jspdf": "https://esm.sh/jspdf@^2.5.1",
     "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
     "docx": "https://esm.sh/docx@^8.5.0",
-    "uuid": "https://esm.sh/uuid@^10.0.0"
+    "uuid": "https://esm.sh/uuid@^10.0.0",
+    "recharts": "https://aistudiocdn.com/recharts@^3.2.1"
   }
 }
 </script>

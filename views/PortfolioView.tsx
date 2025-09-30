@@ -1,13 +1,13 @@
-
-
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import type { PortfolioItem, Currency, Asset, PortfolioItemWithMarketData } from '../types';
-import { getAssetCurrentPrice, getAssetInfo } from '../services/geminiService';
+import type { Portfolio, PortfolioItem, Currency, Asset, PortfolioItemWithMarketData } from '../types';
+import { getAssetQuote, getAssetInfo } from '../services/geminiService';
 
 interface PortfolioViewProps {
-    portfolio: PortfolioItem[];
-    setPortfolio: React.Dispatch<React.SetStateAction<PortfolioItem[]>>;
+    portfolios: Portfolio[];
+    activePortfolio: Portfolio | undefined;
+    activePortfolioId: string | null;
+    setActivePortfolioId: (id: string | null) => void;
     currency: Currency;
     currentEngine: string;
     onTokenUsage: (usage: { promptTokens: number; candidateTokens: number; totalTokens: number; model: string; }) => void;
@@ -16,13 +16,20 @@ interface PortfolioViewProps {
     isApiBlocked: boolean;
     assetForPortfolio: { asset: Asset; price: number | null } | null;
     onClearAssetForPortfolio: () => void;
+    onNewPortfolio: (name: string) => void;
+    onRenamePortfolio: (id: string, newName: string) => void;
+    onDeletePortfolio: (id: string) => void;
+    onAddAsset: (portfolioId: string, assetInfo: { ticker: string, name: string, type: 'stock' | 'crypto' }, quantity: number, purchasePrice: number, purchaseDate: string) => void;
+    onRemoveAsset: (portfolioId: string, ticker: string) => void;
 }
 
 const COLORS = ['#3b82f6', '#16a34a', '#ef4444', '#f97316', '#8b5cf6', '#eab308', '#14b8a6', '#64748b'];
 
 export const PortfolioView: React.FC<PortfolioViewProps> = ({
-    portfolio,
-    setPortfolio,
+    portfolios,
+    activePortfolio,
+    activePortfolioId,
+    setActivePortfolioId,
     currency,
     currentEngine,
     onTokenUsage,
@@ -31,6 +38,11 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
     isApiBlocked,
     assetForPortfolio,
     onClearAssetForPortfolio,
+    onNewPortfolio,
+    onRenamePortfolio,
+    onDeletePortfolio,
+    onAddAsset,
+    onRemoveAsset,
 }) => {
     const [marketData, setMarketData] = useState<Record<string, number | null>>({});
     const [isLoadingPrices, setIsLoadingPrices] = useState(false);
@@ -45,6 +57,9 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
     const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
     
     const quantityInputRef = useRef<HTMLInputElement>(null);
+    
+    const portfolioItems = useMemo(() => activePortfolio?.items ?? [], [activePortfolio]);
+
 
     useEffect(() => {
         if (assetForPortfolio) {
@@ -58,11 +73,11 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
     }, [assetForPortfolio, onClearAssetForPortfolio]);
 
     const fetchPrices = useCallback(async () => {
-        if (portfolio.length === 0) return;
+        if (portfolioItems.length === 0) return;
         setIsLoadingPrices(true);
         const prices: Record<string, number | null> = {};
-        const promises = portfolio.map(item =>
-            getAssetCurrentPrice({ name: item.name, ticker: item.ticker, type: item.type }, currentEngine, currency)
+        const promises = portfolioItems.map(item =>
+            getAssetQuote({ name: item.name, ticker: item.ticker, type: item.type }, currentEngine, currency)
                 .then(response => {
                     if (response) {
                         onTokenUsage({ ...response.usage, model: currentEngine });
@@ -79,7 +94,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
         await Promise.all(promises);
         setMarketData(prices);
         setIsLoadingPrices(false);
-    }, [portfolio, currency, currentEngine, onTokenUsage]);
+    }, [portfolioItems, currency, currentEngine, onTokenUsage]);
 
     useEffect(() => {
         fetchPrices();
@@ -99,6 +114,9 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
         setError(null);
 
         try {
+            if (!activePortfolioId) {
+                throw new Error("No hay una cartera activa seleccionada.");
+            }
             const { data: assetInfo, usage } = await getAssetInfo(ticker, currentEngine);
             onTokenUsage({ ...usage, model: currentEngine });
 
@@ -106,38 +124,9 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                 throw new Error(`No se encontró ningún activo con el ticker '${ticker}'.`);
             }
 
-            const asset = assetInfo[0]; // Assume first result is the correct one for simplicity
+            const asset = assetInfo[0];
             
-            setPortfolio(prev => {
-                const existing = prev.find(item => item.ticker.toLowerCase() === asset.ticker.toLowerCase());
-                if (existing) {
-                     // Update existing item with weighted average price and new date
-                    return prev.map(item => {
-                        if (item.ticker.toLowerCase() === asset.ticker.toLowerCase()) {
-                            const totalQuantity = item.quantity + numQuantity;
-                            const newPurchasePrice = ((item.quantity * item.purchasePrice) + (numQuantity * numPurchasePrice)) / totalQuantity;
-                            return {
-                                ...item,
-                                quantity: totalQuantity,
-                                purchasePrice: newPurchasePrice,
-                                purchaseDate: purchaseDate // Using the date from the form
-                            };
-                        }
-                        return item;
-                    });
-                } else {
-                    // Add new item
-                    const newItem: PortfolioItem = {
-                        ticker: asset.ticker,
-                        name: asset.name,
-                        type: asset.type,
-                        quantity: numQuantity,
-                        purchasePrice: numPurchasePrice,
-                        purchaseDate: purchaseDate,
-                    };
-                    return [...prev, newItem];
-                }
-            });
+            onAddAsset(activePortfolioId, { ticker: asset.ticker, name: asset.name, type: asset.type }, numQuantity, numPurchasePrice, purchaseDate);
 
             setTicker('');
             setQuantity('');
@@ -152,13 +141,40 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
             setIsAdding(false);
         }
     };
-
+    
     const handleRemoveAsset = (tickerToRemove: string) => {
-        setPortfolio(p => p.filter(item => item.ticker !== tickerToRemove));
+        if (activePortfolioId) {
+            onRemoveAsset(activePortfolioId, tickerToRemove);
+        }
+    };
+
+    const handleNewPortfolio = () => {
+        const name = window.prompt("Nombre de la nueva cartera:", `Cartera ${portfolios.length + 1}`);
+        if (name) {
+            onNewPortfolio(name);
+        }
+    };
+
+    const handleRenamePortfolio = () => {
+        if (!activePortfolio) return;
+        const newName = window.prompt("Nuevo nombre para la cartera:", activePortfolio.name);
+        if (newName && newName.trim() && newName !== activePortfolio.name) {
+            onRenamePortfolio(activePortfolio.id, newName);
+        }
+    };
+    
+    const handleDeletePortfolio = () => {
+        if (!activePortfolio || portfolios.length <= 1) {
+            alert("No puedes eliminar la última cartera.");
+            return;
+        }
+        if (window.confirm(`¿Estás seguro de que quieres eliminar la cartera "${activePortfolio.name}"?`)) {
+            onDeletePortfolio(activePortfolio.id);
+        }
     };
 
     const portfolioWithMarketData = useMemo((): PortfolioItemWithMarketData[] => {
-        return portfolio.map(item => {
+        return portfolioItems.map(item => {
             const currentPrice = marketData[item.ticker] ?? null;
             const marketValue = typeof currentPrice === 'number' ? item.quantity * currentPrice : null;
             const costBasis = item.quantity * item.purchasePrice;
@@ -173,7 +189,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                 gainLossPercentage
             };
         });
-    }, [portfolio, marketData]);
+    }, [portfolioItems, marketData]);
 
     const totals = useMemo(() => {
         const initial = { totalValue: 0, totalCost: 0, hasValue: false };
@@ -186,7 +202,9 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
             return acc;
         }, initial);
         
+        if (!result.hasValue && portfolioWithMarketData.length > 0) return { totalValue: 0, totalGainLoss: 0, totalGainLossPercentage: 0 };
         if (!result.hasValue) return null;
+
 
         const totalGainLoss = result.totalValue - result.totalCost;
         const totalGainLossPercentage = result.totalCost > 0 ? (totalGainLoss / result.totalCost) * 100 : 0;
@@ -229,6 +247,20 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
 
     return (
         <div className="space-y-6">
+             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-lg flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-2 flex-grow">
+                    <label htmlFor="portfolio-select" className="text-sm font-bold text-slate-600 dark:text-slate-300 flex-shrink-0">Cartera:</label>
+                    <select id="portfolio-select" value={activePortfolioId ?? ''} onChange={e => setActivePortfolioId(e.target.value)} className="h-9 w-full sm:w-auto flex-grow appearance-none rounded-lg border border-slate-300 bg-white py-1 pl-3 pr-8 font-semibold text-slate-700 transition focus:outline-none focus:ring-2 focus:ring-slate-800 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200 dark:focus:ring-slate-200">
+                        {portfolios.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={handleNewPortfolio} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><i className="fas fa-plus mr-1.5"></i>Nueva</button>
+                    <button onClick={handleRenamePortfolio} disabled={!activePortfolio} className="px-3 py-1.5 text-sm font-semibold rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 disabled:opacity-50"><i className="fas fa-pen mr-1.5"></i>Renombrar</button>
+                    <button onClick={handleDeletePortfolio} disabled={!activePortfolio || portfolios.length <= 1} className="px-3 py-1.5 text-sm font-semibold rounded-md text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-900/40 dark:text-red-400 dark:hover:bg-red-900/60 disabled:opacity-50"><i className="fas fa-trash-alt mr-1.5"></i>Eliminar</button>
+                </div>
+            </div>
+
             {totals && (
                 <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-xl shadow-lg">
                     <div className="flex justify-between items-center mb-4 flex-wrap gap-y-2">
@@ -236,7 +268,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                         <button
                             type="button"
                             onClick={fetchPrices}
-                            disabled={isLoadingPrices || isApiBlocked || portfolio.length === 0}
+                            disabled={isLoadingPrices || isApiBlocked || portfolioItems.length === 0}
                             className="px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 active:bg-slate-300 transition text-sm flex items-center justify-center gap-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed border border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 dark:border-slate-600 dark:disabled:bg-slate-700/50"
                             title="Actualizar precios de mercado"
                         >
@@ -389,10 +421,10 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                         ))}
                     </tbody>
                 </table>
-                {portfolio.length === 0 && (
+                {portfolioItems.length === 0 && (
                     <p className="text-center text-slate-500 py-8">Tu cartera está vacía. Añade tu primer activo usando el formulario de arriba.</p>
                 )}
-                 {portfolio.length > 0 && displayedPortfolio.length === 0 && (
+                 {portfolioItems.length > 0 && displayedPortfolio.length === 0 && (
                      <p className="text-center text-slate-500 py-8">No hay activos del tipo seleccionado en tu cartera.</p>
                 )}
             </div>

@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { AuthenticationProvider } from './components/AuthenticationProvider';
 import { CookieConsentProvider } from './context/CookieConsentContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -11,8 +12,10 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <CookieConsentProvider>
-      <AuthenticationProvider />
-    </CookieConsentProvider>
+    <ErrorBoundary>
+      <CookieConsentProvider>
+        <AuthenticationProvider />
+      </CookieConsentProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );

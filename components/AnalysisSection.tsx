@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import type { AnalysisVector } from '../types';
 import { formatTextToHtml } from '../utils/formatter';
@@ -10,9 +11,10 @@ interface AnalysisSectionProps {
     onAnalyze: () => Promise<void> | void;
     onDelete: (title: string) => void;
     isApiBlocked?: boolean;
+    onToggleInclusion: () => void;
 }
 
-export const AnalysisSection: React.FC<AnalysisSectionProps> = ({ vector, onAnalyze, onDelete, isApiBlocked }) => {
+export const AnalysisSection: React.FC<AnalysisSectionProps> = ({ vector, onAnalyze, onDelete, isApiBlocked, onToggleInclusion }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [isSourcesOpen, setIsSourcesOpen] = useState(false);
@@ -41,18 +43,31 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({ vector, onAnal
                 disabled={isDisabled}
                 title={isDisabled && isApiBlocked ? "Las funciones de IA están desactivadas por límite de cuota." : vector.title}
             >
-                <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-200 flex-1 text-left pr-2">
-                    {vector.title}
-                    {description && !vector.isCustom && (
-                        <div className="relative group inline-flex items-center ml-2 align-middle" onClick={e => e.stopPropagation()}>
-                            <i className="fas fa-info-circle text-slate-400 dark:text-slate-500 text-sm cursor-help"></i>
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
-                                {description}
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-slate-800"></div>
+                <div className="flex items-center gap-3 flex-grow min-w-0">
+                    <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
+                        <input
+                            type="checkbox"
+                            checked={vector.isIncludedInGlobal ?? true}
+                            onChange={onToggleInclusion}
+                            disabled={!vector.content}
+                            className="h-5 w-5 rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-slate-900 dark:border-slate-600 dark:checked:bg-red-600"
+                            aria-label={`Incluir ${vector.title} en el análisis global`}
+                            title={vector.content ? "Incluir en Visión Global" : "Analiza este vector para poder incluirlo"}
+                        />
+                    </div>
+                    <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-200 flex-1 text-left pr-2 truncate">
+                        {vector.title}
+                        {description && !vector.isCustom && (
+                            <div className="relative group inline-flex items-center ml-2 align-middle" onClick={e => e.stopPropagation()}>
+                                <i className="fas fa-info-circle text-slate-400 dark:text-slate-500 text-sm cursor-help"></i>
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
+                                    {description}
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-slate-800"></div>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </h4>
+                        )}
+                    </h4>
+                </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                     {vector.isCustom && !vector.isLoading && (
                         <button

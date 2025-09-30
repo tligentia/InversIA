@@ -1,11 +1,9 @@
 
-
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { SearchBar } from './components/SearchBar';
 import { AssetSelection } from './components/AssetSelection';
 import { getAssetInfo, getAvailableTextModels, initializeGenAI } from './services/geminiService';
-import { HistoryItem, AppError, QuotaExceededError, Asset, View, AnalysisSession, Theme, Currency, PortfolioItem, MarketAnalysisState, ApiKeyNotSetError, TokenUsageRecord } from './types';
+import { HistoryItem, AppError, QuotaExceededError, Asset, View, AnalysisSession, Theme, Currency, Portfolio, PortfolioItem, MarketAnalysisState, ApiKeyNotSetError, TokenUsageRecord } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { ErrorDisplay } from './components/ErrorDisplay';
 import { Footer } from './components/Footer';
@@ -16,7 +14,6 @@ import { CalculatorView } from './views/CalculatorView';
 import { AlternativesView } from './views/AlternativesView';
 import { ChatView } from './views/ChatView';
 import { BottomNavBar } from './components/BottomNavBar';
-import { v4 as uuidv4 } from 'uuid';
 import { MarketView } from './views/MarketView';
 import { PortfolioView } from './views/PortfolioView';
 import { CurrencySelector } from './components/CurrencySelector';
@@ -29,6 +26,8 @@ import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { CookieSettingsModal } from './components/CookieSettingsModal';
 import { CookiePolicyView } from './views/CookiePolicyView';
 import { TOKEN_PRICING_USD } from './constants';
+import { ChartView } from './views/ChartView';
+import { usePortfolios } from './hooks/usePortfolios';
 
 interface AppProps {
     userIp: string | null;
@@ -39,6 +38,7 @@ interface AppProps {
 const navItems: { view: View; label: string; icon: string }[] = [
     { view: 'market', label: 'Mercado', icon: 'fa-globe' },
     { view: 'analysis', label: 'Análisis', icon: 'fa-chart-pie' },
+    { view: 'charts', label: 'Gráficos', icon: 'fa-chart-line' },
     { view: 'portfolio', label: 'Cartera', icon: 'fa-wallet' },
     { view: 'calculator', label: 'Calculadora', icon: 'fa-calculator' },
     { view: 'alternatives', label: 'Alternativos', icon: 'fa-users' },
@@ -70,11 +70,25 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
     // Multi-session state
     const [sessions, setSessions] = useLocalStorage<AnalysisSession[]>('analysisSessions', []);
     const [activeSessionId, setActiveSessionId] = useLocalStorage<string | null>('activeAnalysisSessionId', null);
+    
+    // Multi-portfolio state using custom hook
+    const {
+        portfolios,
+        activePortfolio,
+        activePortfolioId,
+        setActivePortfolioId,
+        addPortfolio,
+        renamePortfolio,
+        deletePortfolio,
+        addAssetToPortfolio,
+        removeAssetFromPortfolio,
+        importAndMergePortfolio,
+    } = usePortfolios();
+
 
     // View state with persistence
     const [activeView, setActiveView] = useLocalStorage<View>('activeView', 'analysis');
     const [currency, setCurrency] = useLocalStorage<Currency>('userCurrency', 'EUR');
-    const [portfolio, setPortfolio] = useLocalStorage<PortfolioItem[]>('userPortfolio', []);
     const [marketAnalysisState, setMarketAnalysisState] = useState<MarketAnalysisState>({
         results: {},
         isLoading: false,
@@ -137,7 +151,6 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-
     // --- Core Functions ---
     const handleTokenUsage = useCallback((usage: {
         promptTokens: number;
@@ -176,7 +189,7 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
             setActiveView('settings');
         } else if (e instanceof QuotaExceededError) {
             setIsQuotaExhausted(true);
-            const quotaMessage = `Se ha excedido la cuota para el motor de IA subyacente (${e.engine}). Todas las funciones de IA están desactivadas. Por favor, revisa tu plan y facturación en Google.`;
+            const quotaMessage = e.message || `Se ha excedido la cuota para el motor de IA subyacente (${e.engine}). Todas las funciones de IA están desactivadas. Por favor, revisa tu plan y facturación en Google.`;
             setError({ title: `Cuota Excedida (${e.engine})`, message: quotaMessage });
         } else {
             console.error(e);
@@ -231,9 +244,9 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
             asset: asset,
             isInitializing: true,
             initializationError: null,
-            stockData: [],
             currentPrice: null,
-            currentPeriod: '1M',
+            changeValue: null,
+            changePercentage: null,
             analysisVectors: [],
             globalAnalysis: {
                 content: null,
@@ -305,7 +318,7 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
     };
 
     const handleClearLocalStorage = () => {
-        if (window.confirm("¿Estás seguro de que deseas borrar TODOS los datos de la aplicación (historial, cartera, pestañas, ajustes)? Esta acción es irreversible y recargará la aplicación.")) {
+        if (window.confirm("¿Estás seguro de que deseas borrar TODOS los datos de la aplicación (historial, carteras, pestañas, ajustes)? Esta acción es irreversible y recargará la aplicación.")) {
             window.localStorage.clear();
             window.location.reload();
         }
@@ -352,16 +365,31 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
              case 'portfolio':
                 return (
                     <PortfolioView
-                        portfolio={portfolio}
-                        setPortfolio={setPortfolio}
+                        portfolios={portfolios}
+                        activePortfolio={activePortfolio}
+                        activePortfolioId={activePortfolioId}
+                        setActivePortfolioId={setActivePortfolioId}
                         currency={currency}
                         currentEngine={currentEngine}
+                        // FIX: Changed onTokenUsage to handleTokenUsage to pass the correct callback.
                         onTokenUsage={handleTokenUsage}
                         onApiError={handleApiError}
                         onSelectAsset={handleAssetSelection}
                         isApiBlocked={isApiBlocked}
                         assetForPortfolio={assetForPortfolio}
                         onClearAssetForPortfolio={() => setAssetForPortfolio(null)}
+                        onNewPortfolio={addPortfolio}
+                        onRenamePortfolio={renamePortfolio}
+                        onDeletePortfolio={deletePortfolio}
+                        onAddAsset={addAssetToPortfolio}
+                        onRemoveAsset={removeAssetFromPortfolio}
+                    />
+                );
+            case 'charts':
+                return (
+                    <ChartView
+                        activeSession={activeSession}
+                        theme={theme}
                     />
                 );
             case 'calculator':
@@ -424,7 +452,7 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
                         tokenUsageHistory={tokenUsageHistory}
                         onClearAccountingHistory={() => setTokenUsageHistory([])}
                         currency={currency}
-                        setPortfolio={setPortfolio}
+                        onImportPortfolio={importAndMergePortfolio}
                         onTokenUsage={handleTokenUsage}
                         onApiError={handleApiError}
                     />
@@ -523,8 +551,9 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
                                     ) : (
                                         <AssetHeader
                                             asset={activeSession.asset}
-                                            stockData={activeSession.stockData}
                                             currentPrice={activeSession.currentPrice}
+                                            changeValue={activeSession.changeValue}
+                                            changePercentage={activeSession.changePercentage}
                                             currency={currency}
                                             onSendToPortfolio={handleSendToPortfolio}
                                         />
