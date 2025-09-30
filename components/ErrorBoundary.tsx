@@ -10,23 +10,26 @@ interface State {
 }
 
 class ErrorBoundary extends Component<Props, State> {
+  // FIX: Replaced the constructor with a more modern and robust state initializer and an arrow function for the event handler.
+  // This resolves errors related to accessing `this.state` and `this.props` before they are set up.
   public state: State = {
     hasError: false,
+    error: undefined,
   };
 
-  public static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
     
-  private handleReload = () => {
+  handleReload = () => {
     window.location.reload();
-  };
+  }
 
-  public render() {
+  render() {
     if (this.state.hasError) {
       return (
         <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-300 p-8 text-center">
@@ -59,7 +62,6 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    // FIX: Accessing props via `this.props` in a class component. The error suggests `props` was used without `this`.
     return this.props.children;
   }
 }

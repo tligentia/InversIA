@@ -39,19 +39,27 @@
   .animate-pulse-active {
     animation: pulse-active 2s ease-in-out infinite;
   }
+  @keyframes placeholder-pulse {
+    50% {
+      opacity: 0.5;
+    }
+  }
+  .animate-placeholder-pulse::placeholder {
+    animation: placeholder-pulse 2s ease-in-out infinite;
+  }
 </style>
 <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@^19.1.0/",
-    "react": "https://esm.sh/react@^19.1.0",
+    "react/": "https://esm.sh/react@^18.2.0/",
+    "react": "https://esm.sh/react@^18.2.0",
     "@google/genai": "https://esm.sh/@google/genai@^1.10.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react-dom/": "https://esm.sh/react-dom@^18.2.0/",
     "jspdf": "https://esm.sh/jspdf@^2.5.1",
     "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
     "docx": "https://esm.sh/docx@^8.5.0",
     "uuid": "https://esm.sh/uuid@^10.0.0",
-    "recharts": "https://aistudiocdn.com/recharts@^3.2.1"
+    "recharts": "https://esm.sh/recharts@^2.12.7"
   }
 }
 </script>

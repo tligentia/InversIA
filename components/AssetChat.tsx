@@ -26,6 +26,8 @@ export const AssetChat: React.FC<AssetChatProps> = ({
     const [isResponding, setIsResponding] = useState(false);
     const chatContainerRef = useRef<HTMLDivElement>(null);
 
+    const isReadyForInput = !userMessage.trim() && !isResponding && !isApiBlocked;
+
     useEffect(() => {
         if (chatContainerRef.current) {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -172,7 +174,7 @@ export const AssetChat: React.FC<AssetChatProps> = ({
                                 onChange={(e) => setUserMessage(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
                                 placeholder="Escribe tu pregunta..."
-                                className="flex-grow h-10 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-800 transition bg-white disabled:bg-slate-100 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200 dark:focus:ring-slate-200"
+                                className={`flex-grow h-10 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-800 transition bg-white disabled:bg-slate-100 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200 dark:focus:ring-slate-200 ${isReadyForInput ? 'animate-placeholder-pulse' : ''}`}
                                 disabled={isResponding || isApiBlocked}
                                 aria-label="Escribe tu pregunta para la IA"
                             />

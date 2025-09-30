@@ -28,7 +28,7 @@ const platforms = [
 
 
 export const AssetHeader: React.FC<AssetHeaderProps> = ({ asset, currentPrice, changeValue, changePercentage, currency, onSendToPortfolio }) => {
-    const isPositive = changeValue !== null && changeValue >= 0;
+    const isPositive = typeof changeValue === 'number' && changeValue >= 0;
 
     return (
         <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-xl shadow-lg">
@@ -59,12 +59,12 @@ export const AssetHeader: React.FC<AssetHeaderProps> = ({ asset, currentPrice, c
                     {currentPrice !== null ? (
                         <>
                             <p className="text-3xl font-semibold text-slate-900 dark:text-slate-100">{currentPrice.toLocaleString('es-ES', { style: 'currency', currency: currency })}</p>
-                            {changeValue !== null && changePercentage !== null && (
+                            {typeof changeValue === 'number' && typeof changePercentage === 'number' ? (
                                 <div className={`flex items-center justify-end gap-2 text-lg font-medium ${isPositive ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
                                     {isPositive ? <i className="fas fa-arrow-trend-up"></i> : <i className="fas fa-arrow-trend-down"></i>}
                                     <span>{changeValue.toFixed(2)} ({changePercentage.toFixed(2)}%)</span>
                                 </div>
-                            )}
+                            ) : null}
                         </>
                     ) : (
                          <p className="text-3xl font-semibold text-slate-400 dark:text-slate-500">Cargando...</p>

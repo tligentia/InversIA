@@ -62,8 +62,23 @@ export const CookieSettingsModal: React.FC<CookieSettingsModalProps> = ({ isOpen
                         <i className="fas fa-times fa-lg"></i>
                     </button>
                 </div>
+
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400 rounded-r-lg mb-6">
+                    <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 pt-0.5">
+                            <i className="fas fa-shield-alt text-blue-600 dark:text-blue-400 text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-slate-800 dark:text-slate-200">Capítulo de Privacidad: Tu Control Total</h3>
+                            <p className="text-sm text-slate-700 dark:text-slate-300 mt-1">
+                                Esta aplicación guarda toda su información en la caché local de tu navegador. <strong>No utiliza servidores ni gestiona ningún almacenamiento externo</strong>. Tus datos, como la cartera o el historial, permanecen exclusivamente en tu dispositivo. Habilita o deshabilita las cookies funcionales y guarda tu selección.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-                    Gestiona tus preferencias de consentimiento. Habilita o deshabilita los distintos tipos de cookies y guarda tu selección.
+                    Gestiona tus preferencias de consentimiento a continuación.
                 </p>
 
                 <div className="space-y-4">

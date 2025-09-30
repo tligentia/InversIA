@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import type { Portfolio, PortfolioItem, Currency, Asset, PortfolioItemWithMarketData } from '../types';
 import { getAssetQuote, getAssetInfo } from '../services/geminiService';
+import { InputDialog } from '../components/InputDialog';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 
 interface PortfolioViewProps {
     portfolios: Portfolio[];
@@ -49,6 +51,12 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
     const [isAdding, setIsAdding] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [grouping, setGrouping] = useState<'all' | 'stock' | 'crypto'>('all');
+
+    // Dialogs state
+    const [dialogState, setDialogState] = useState<{
+        type: 'new' | 'rename' | 'delete' | null;
+        data?: any;
+    }>({ type: null });
 
     // Form state
     const [ticker, setTicker] = useState('');
@@ -149,17 +157,12 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
     };
 
     const handleNewPortfolio = () => {
-        const name = window.prompt("Nombre de la nueva cartera:", `Cartera ${portfolios.length + 1}`);
-        if (name) {
-            onNewPortfolio(name);
-        }
+        setDialogState({ type: 'new' });
     };
 
     const handleRenamePortfolio = () => {
-        if (!activePortfolio) return;
-        const newName = window.prompt("Nuevo nombre para la cartera:", activePortfolio.name);
-        if (newName && newName.trim() && newName !== activePortfolio.name) {
-            onRenamePortfolio(activePortfolio.id, newName);
+        if (activePortfolio) {
+            setDialogState({ type: 'rename', data: { id: activePortfolio.id, name: activePortfolio.name } });
         }
     };
     
@@ -168,9 +171,11 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
             alert("No puedes eliminar la última cartera.");
             return;
         }
-        if (window.confirm(`¿Estás seguro de que quieres eliminar la cartera "${activePortfolio.name}"?`)) {
-            onDeletePortfolio(activePortfolio.id);
-        }
+        setDialogState({ type: 'delete', data: { id: activePortfolio.id, name: activePortfolio.name } });
+    };
+    
+    const closeDialogs = () => {
+        setDialogState({ type: null });
     };
 
     const portfolioWithMarketData = useMemo((): PortfolioItemWithMarketData[] => {
@@ -428,6 +433,35 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                      <p className="text-center text-slate-500 py-8">No hay activos del tipo seleccionado en tu cartera.</p>
                 )}
             </div>
+            <InputDialog
+                isOpen={dialogState.type === 'new' || dialogState.type === 'rename'}
+                title={dialogState.type === 'new' ? 'Nueva Cartera' : 'Renombrar Cartera'}
+                label="Nombre de la cartera"
+                initialValue={dialogState.type === 'rename' ? dialogState.data?.name : `Cartera ${portfolios.length + 1}`}
+                confirmText={dialogState.type === 'new' ? 'Crear' : 'Renombrar'}
+                onConfirm={(name) => {
+                    if (dialogState.type === 'new') {
+                        onNewPortfolio(name);
+                    } else if (dialogState.type === 'rename' && dialogState.data) {
+                        onRenamePortfolio(dialogState.data.id, name);
+                    }
+                    closeDialogs();
+                }}
+                onClose={closeDialogs}
+            />
+            <ConfirmationModal
+                isOpen={dialogState.type === 'delete'}
+                title="Eliminar Cartera"
+                message={`¿Estás seguro de que quieres eliminar la cartera "${dialogState.data?.name}"? Esta acción es irreversible.`}
+                onConfirm={() => {
+                    if (dialogState.type === 'delete' && dialogState.data) {
+                        onDeletePortfolio(dialogState.data.id);
+                    }
+                    closeDialogs();
+                }}
+                onClose={closeDialogs}
+                confirmText="Eliminar"
+            />
         </div>
     );
 };

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { SearchBar } from './components/SearchBar';
 import { AssetSelection } from './components/AssetSelection';
@@ -129,6 +130,8 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
         const loadAndSetModels = async () => {
             let engines: string[] = [];
             try {
+                // Always attempt to load models. The getAvailableTextModels function is currently a mock
+                // and does not require an API key. Individual API calls are guarded separately.
                 const fetchedModels = await getAvailableTextModels();
                 if (fetchedModels && fetchedModels.length > 0) {
                     engines = fetchedModels;
@@ -148,8 +151,7 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
         };
 
         loadAndSetModels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [apiKey, currentEngine, setCurrentEngine]);
 
     // --- Core Functions ---
     const handleTokenUsage = useCallback((usage: {
@@ -225,7 +227,18 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
     }, [searchQuery, handleApiError, currentEngine, handleTokenUsage]);
 
     const handleCreateNewSession = useCallback((asset: Asset) => {
-        const existingSession = sessions.find(s => s.asset.ticker === asset.ticker);
+        // Validate that asset has a non-empty ticker and name
+        if (!asset || !asset.ticker?.trim() || !asset.name?.trim()) {
+            console.error("Attempted to create a session with an invalid asset object:", asset);
+            handleApiError(
+                new Error("El activo seleccionado no es válido."), 
+                "Error de Sesión", 
+                "No se puede iniciar el análisis para un activo sin un ticker o nombre válido."
+            );
+            return;
+        }
+
+        const existingSession = sessions.find(s => s.asset.ticker.toLowerCase() === asset.ticker.toLowerCase());
         if (existingSession) {
             setActiveSessionId(existingSession.id);
             setActiveView('analysis');
@@ -275,7 +288,7 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
         setActiveView('analysis');
         clearSearchState();
         window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, [sessions, setActiveSessionId, setSessions, clearSearchState, setActiveView]);
+    }, [sessions, setActiveSessionId, setSessions, clearSearchState, setActiveView, handleApiError]);
 
     const handleAssetSelection = useCallback(async (asset: Asset) => {
         handleCreateNewSession(asset);
@@ -288,13 +301,18 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
         handleCreateNewSession(assetToAnalyze);
     }, [handleCreateNewSession]);
 
-    const handleCloseSession = (sessionId: string) => {
+    const handleCloseSession = useCallback((sessionId: string) => {
         setSessions(prevSessions => {
+            const closingIndex = prevSessions.findIndex(s => s.id === sessionId);
+            if (closingIndex === -1) return prevSessions;
+
             const remainingSessions = prevSessions.filter(s => s.id !== sessionId);
+
             if (activeSessionId === sessionId) {
                 if (remainingSessions.length > 0) {
-                    const closingIndex = prevSessions.findIndex(s => s.id === sessionId);
-                    const newActiveIndex = Math.max(0, closingIndex - 1);
+                    // If closing the first tab, the new first tab becomes active.
+                    // Otherwise, the tab to the left of the closed one becomes active.
+                    const newActiveIndex = closingIndex > 0 ? closingIndex - 1 : 0;
                     setActiveSessionId(remainingSessions[newActiveIndex].id);
                 } else {
                     setActiveSessionId(null);
@@ -302,7 +320,7 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
             }
             return remainingSessions;
         });
-    };
+    }, [activeSessionId, setSessions, setActiveSessionId]);
     
     const handleSendToPortfolio = (asset: Asset, price: number | null) => {
         setAssetForPortfolio({ asset, price });
@@ -371,7 +389,6 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
                         setActivePortfolioId={setActivePortfolioId}
                         currency={currency}
                         currentEngine={currentEngine}
-                        // FIX: Changed onTokenUsage to handleTokenUsage to pass the correct callback.
                         onTokenUsage={handleTokenUsage}
                         onApiError={handleApiError}
                         onSelectAsset={handleAssetSelection}
@@ -474,7 +491,7 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
                     {' '}para habilitar las funciones de IA.
                 </div>
             )}
-             {isQuotaExhausted && error && error.title.startsWith("Cuota Excedida") && (
+             {isQuotaExhausted && error?.title?.startsWith("Cuota Excedida") && (
                 <div className="bg-red-700 text-white text-center p-2 font-semibold sticky top-0 z-[60] shadow-lg">
                     <i className="fas fa-exclamation-triangle mr-2"></i>
                     {error.message}
@@ -547,7 +564,15 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
                                     {activeSession.isInitializing ? (
                                         <AssetHeaderSkeleton />
                                     ) : activeSession.initializationError ? (
-                                        null // Error is handled within AnalysisView
+                                        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-xl shadow-md">
+                                            <div className="flex items-center gap-4">
+                                                <i className="fas fa-exclamation-triangle text-2xl text-red-500 dark:text-red-400"></i>
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-red-800 dark:text-red-200">Error al cargar {activeSession.asset.name} ({activeSession.asset.ticker})</h3>
+                                                    <p className="text-red-700 dark:text-red-300 text-sm">{activeSession.initializationError}</p>
+                                                </div>
+                                            </div>
+                                        </div>
                                     ) : (
                                         <AssetHeader
                                             asset={activeSession.asset}

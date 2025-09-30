@@ -32,18 +32,45 @@ interface GeminiResponse<T> {
 function handleGeminiError(error: unknown, defaultMessage: string, model: string): Error {
     console.error(`Gemini API Error in function calling model '${model}':`, error);
 
+    let debugInfo = '';
+    if (error instanceof Error && error.stack) {
+        const stackLines = error.stack.split('\n');
+        // Find the first line in the stack trace that is not from the geminiService file itself.
+        // This points to where the gemini service function was *called* from.
+        const callerLine = stackLines.find(line => line.includes('at ') && !line.includes('geminiService.ts'));
+        
+        if (callerLine) {
+            // Clean up the line for display. E.g., "at handleSearch (http://.../App.tsx:210:48)" -> "(Error en handleSearch en App.tsx:210)"
+            const match = callerLine.match(/at\s+([^\s(]+)\s+\(?(?:[^\/]+\/)*([^\/)]+:\d+):\d+\)?/);
+            if (match && match[1] && match[2]) {
+                 debugInfo = `\n(Error en ${match[1]} en ${match[2]})`;
+            } else {
+                // Fallback for anonymous functions or different formats like "at http://.../App.tsx:210:48"
+                const simpleMatch = callerLine.match(/\((?:[^\/]+\/)*([^\/)]+:\d+:\d+)\)/);
+                if (simpleMatch && simpleMatch[1]) {
+                    debugInfo = `\n(Error en ${simpleMatch[1]})`;
+                } else {
+                     debugInfo = `\n(Detalles: ${callerLine.trim()})`;
+                }
+            }
+        }
+    }
+
+
     // Handle our custom, pre-emptive error for missing API key
     if (error instanceof ApiKeyNotSetError) {
+        error.message += debugInfo;
         return error;
     }
 
     // Handle network errors (e.g., offline)
     if (error instanceof TypeError && error.message.includes('fetch')) {
-        return new Error("Error de red. Por favor, comprueba tu conexión a internet e inténtalo de nuevo.");
+        return new Error("Error de red. Por favor, comprueba tu conexión a internet e inténtalo de nuevo." + debugInfo);
     }
 
     // Handle specific error classes we've defined
     if (error instanceof AnomalousPriceError) {
+        error.message += debugInfo;
         return error;
     }
 
@@ -53,29 +80,29 @@ function handleGeminiError(error: unknown, defaultMessage: string, model: string
         // Check for common, critical error messages from the API/SDK
         if (errorMessage.includes("resource_exhausted") || errorMessage.includes("quota")) {
             const quotaMessage = `Se ha excedido la cuota de uso para el motor de IA '${model}'. Por favor, revisa tu plan y los detalles de facturación en tu cuenta de Google AI Studio para poder continuar.`;
-            return new QuotaExceededError(quotaMessage, model);
+            return new QuotaExceededError(quotaMessage + debugInfo, model);
         }
 
         if (errorMessage.includes("api key not valid") || errorMessage.includes("permission_denied")) {
-            return new Error(`La clave API de Gemini proporcionada no es válida o no tiene los permisos necesarios. Por favor, revísala en la sección de Ajustes. Puedes obtener una nueva clave en Google AI Studio.`);
+            return new Error(`La clave API de Gemini proporcionada no es válida o no tiene los permisos necesarios. Por favor, revísala en la sección de Ajustes. Puedes obtener una nueva clave en Google AI Studio.` + debugInfo);
         }
 
         if (errorMessage.includes("not_found") || errorMessage.includes("404")) {
-            return new Error(`El motor de IA '${model}' no fue encontrado o no está disponible. Por favor, selecciona otro motor si es posible.`);
+            return new Error(`El motor de IA '${model}' no fue encontrado o no está disponible. Por favor, selecciona otro motor si es posible.` + debugInfo);
         }
 
         if (errorMessage.includes("invalid argument")) {
-             return new Error(`La solicitud a la API contenía un argumento no válido. Esto puede ser un error interno. Por favor, intenta reformular tu petición. Detalles: ${error.message}`);
+             return new Error(`La solicitud a la API contenía un argumento no válido. Esto puede ser un error interno. Por favor, intenta reformular tu petición. Detalles: ${error.message}` + debugInfo);
         }
         
         // Return a cleaner version of the original error if it's somewhat understandable
         if (!errorMessage.includes('json') && !errorMessage.includes('internal')) {
-             return new Error(`La API ha devuelto un error: ${error.message}`);
+             return new Error(`La API ha devuelto un error: ${error.message}` + debugInfo);
         }
     }
 
     // Fallback for unexpected or generic errors
-    return new Error(defaultMessage);
+    return new Error(defaultMessage + debugInfo);
 }
 
 function safeJsonParse<T>(jsonString: string, functionName: string): T {
@@ -668,10 +695,10 @@ export async function getAssetQuote(asset: Asset, engine: string, currency: Curr
 
         const quoteData = cleanAndParseJson<{ price: number; changeValue: number; changePercentage: number; currency: string }>(text, 'getAssetQuote');
         
-        if (quoteData && typeof quoteData.price === 'number') {
+        if (quoteData && typeof quoteData.price === 'number' && typeof quoteData.changeValue === 'number' && typeof quoteData.changePercentage === 'number') {
             return { data: quoteData, usage };
         } else {
-             throw new Error("La API devolvió un formato de cotización no válido.");
+             throw new Error("La API devolvió un formato de cotización no válido o incompleto.");
         }
     } catch (error) {
         throw handleGeminiError(error, "No se pudo obtener la cotización del activo.", engine);

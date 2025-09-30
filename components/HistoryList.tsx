@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { HistoryItem, Currency } from '../types';
 import { SentimentBadge } from './SentimentBadge';
@@ -63,12 +62,18 @@ export const HistoryList: React.FC<HistoryListProps> = React.memo(({ groupedHist
                                         </div>
                                         <div className="flex items-baseline gap-4 flex-shrink-0">
                                             <p className="font-semibold text-slate-900 dark:text-slate-100 text-base">{item.lastClose.toLocaleString('es-ES', { style: 'currency', currency: currency })}</p>
-                                            <div className={`flex items-center text-sm font-medium ${item.change >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
-                                                {item.change >= 0 ? 
-                                                    <i className="fas fa-arrow-up mr-1"></i> : 
-                                                    <i className="fas fa-arrow-down mr-1"></i>
-                                                }
-                                                <span>{item.change.toFixed(2)} ({item.changePercentage.toFixed(2)}%)</span>
+                                            <div className={`flex items-center text-sm font-medium ${typeof item.change === 'number' && item.change >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
+                                                {typeof item.change === 'number' && typeof item.changePercentage === 'number' ? (
+                                                    <>
+                                                        {item.change >= 0 ? 
+                                                            <i className="fas fa-arrow-up mr-1"></i> : 
+                                                            <i className="fas fa-arrow-down mr-1"></i>
+                                                        }
+                                                        <span>{item.change.toFixed(2)} ({item.changePercentage.toFixed(2)}%)</span>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-slate-500">--</span>
+                                                )}
                                             </div>
                                         </div>
                                     </button>

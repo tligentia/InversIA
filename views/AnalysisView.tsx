@@ -71,8 +71,8 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
                 const { data: quoteData, usage: priceUsage } = await getAssetQuote(session.asset, currentEngine, currency);
                 onTokenUsage({ ...priceUsage, model: currentEngine });
                 
-                if (!quoteData) {
-                    throw new Error(`No se pudo obtener la cotización para ${session.asset.ticker}.`);
+                if (!quoteData || typeof quoteData.price !== 'number' || typeof quoteData.changeValue !== 'number' || typeof quoteData.changePercentage !== 'number') {
+                    throw new Error(`La respuesta de la API de cotizaciones para ${session.asset.ticker} fue incompleta o inválida.`);
                 }
 
                 const { price, changeValue, changePercentage } = quoteData;
@@ -126,8 +126,7 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
         };
 
         initialize(sessionToInitialize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sessions, currency]); // This effect should run when a new session is added or currency changes.
+    }, [sessions, currency, currentEngine, onTokenUsage, setHistory, updateSession]);
     
     // Effect for saving custom vectors
     useEffect(() => {
@@ -348,17 +347,15 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
                 {activeSession && !activeSession.isInitializing && (
                      <>
                         {activeSession.initializationError ? (
-                            <div className="mt-8 p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-xl text-center shadow-lg">
-                                <i className="fas fa-exclamation-triangle text-4xl text-red-500 dark:text-red-400 mb-4"></i>
-                                <h3 className="text-xl font-bold text-red-800 dark:text-red-200">Error al Cargar el Activo</h3>
-                                <p className="text-red-700 dark:text-red-300 mt-2 mb-6">{activeSession.initializationError}</p>
+                            <div className="mt-8 text-center">
+                                <p className="text-slate-500 dark:text-slate-400">No se pudieron cargar los vectores de análisis.</p>
                                 <button
                                     type="button"
                                     onClick={() => handleRetryInitialization(activeSession.id)}
-                                    className="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 active:bg-red-800 transition shadow-md"
+                                    className="mt-4 px-6 py-2 bg-slate-800 text-white font-semibold rounded-lg hover:bg-slate-700 active:bg-slate-900 transition shadow-md"
                                 >
                                     <i className="fas fa-sync-alt mr-2"></i>
-                                    Reintentar
+                                    Reintentar Carga
                                 </button>
                             </div>
                         ) : (

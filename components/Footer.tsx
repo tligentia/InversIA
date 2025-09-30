@@ -1,5 +1,6 @@
 
 
+
 import React, { useMemo } from 'react';
 import type { Currency } from '../types';
 import { CONVERSION_RATES } from '../constants';
@@ -42,7 +43,7 @@ export const Footer: React.FC<FooterProps> = ({ tokenCount, totalCostUSD, userIp
                 
                 {/* Group 1: Version & IP */}
                 <div className="flex flex-col sm:flex-row items-center gap-y-2 sm:gap-x-4">
-                    <span className="font-bold text-red-700">Versión 2025.v9S</span>
+                    <span className="font-bold text-red-700">Versión 2025.v9U</span>
                     {userIp && (
                         <div className="flex items-baseline gap-1.5">
                             <span>IP:</span>
@@ -73,7 +74,7 @@ export const Footer: React.FC<FooterProps> = ({ tokenCount, totalCostUSD, userIp
                  {/* Group 3: Cookies & Credits */}
                 <div className="flex flex-col sm:flex-row items-center gap-y-2 sm:gap-x-4 text-center sm:text-right">
                     <button type="button" onClick={onManageCookies} className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:underline transition">
-                        Gestionar Cookies
+                        Cookies y Privacidad
                     </button>
                     <VerticalSeparator />
                      <div>

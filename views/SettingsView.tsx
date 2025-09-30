@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { EngineSelector } from '../components/EngineSelector';
 import type { Theme, View, TokenUsageRecord, Currency, Portfolio, PortfolioItem } from '../types';
 import { TRUSTED_IPS } from '../constants';
@@ -98,7 +98,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const [isImporting, setIsImporting] = useState(false);
     const [importStatus, setImportStatus] = useState('');
     const [importError, setImportError] = useState('');
-    const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         // Automatically apply dev key for trusted IPs if no key is set when view loads
@@ -227,25 +227,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             const rows = allLines.slice(headerRowIndex + 1);
             
-            const parsedRows = rows.map(row => {
+            const parsedRows: any[] = [];
+            const failedRows: any[] = [];
+            
+            rows.forEach((row, index) => {
                 const values = parseCsvRow(row);
-                // Filter out summary lines or malformed rows that don't match the header structure
-                if (values.length < headers.length * 0.7) return null;
+                if (values.length < headers.length * 0.7) return; // Skip malformed/summary lines
 
-                return {
+                const rowData = {
                     ticker: values[symbolIdx],
                     name: values[nameIdx],
                     quantity: parseInvestingNumber(values[quantityIdx] ?? '0'),
                     purchasePrice: parseInvestingNumber(values[priceIdx] ?? '0'),
                     purchaseDate: dateIdx !== -1 && values[dateIdx] ? parseInvestingDate(values[dateIdx]) : new Date().toISOString().split('T')[0],
+                    originalRow: index + headerRowIndex + 2
                 };
-            }).filter(r => r && r.ticker && !isNaN(r.quantity) && r.quantity > 0 && !isNaN(r.purchasePrice));
+
+                if (rowData.ticker && !isNaN(rowData.quantity) && rowData.quantity > 0 && !isNaN(rowData.purchasePrice)) {
+                    parsedRows.push(rowData);
+                } else {
+                    failedRows.push(rowData);
+                }
+            });
             
             if(parsedRows.length === 0){
                 throw new Error("No se encontraron registros de activos válidos en el archivo después de la fila de cabeceras.");
             }
 
-            setImportStatus(`Encontrados ${parsedRows.length} registros. Obteniendo tipos de activos... (esto puede tardar)`);
+            setImportStatus(`Encontrados ${parsedRows.length} registros válidos. Obteniendo tipos de activos... (esto puede tardar)`);
 
             const uniqueTickers = [...new Set(parsedRows.map(r => r.ticker))];
             const assetTypeMap = new Map<string, 'stock' | 'crypto'>();
@@ -266,15 +275,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             const importedItems: PortfolioItem[] = parsedRows.map(row => {
                 const type = assetTypeMap.get(row.ticker);
-                if (!type) return null;
+                if (!type) return null; // Ticker not found by API, will be skipped
                 return { ...row, type };
             }).filter((item): item is PortfolioItem => item !== null);
 
-            setImportStatus(`Procesados ${importedItems.length} de ${parsedRows.length} registros. Actualizando cartera...`);
+            const totalSkipped = failedRows.length + (parsedRows.length - importedItems.length);
+
+            let successMessage = `¡Éxito! ${importedItems.length} registros importados.`;
+            if (totalSkipped > 0) {
+                successMessage += ` ${totalSkipped} registros fueron omitidos por datos inválidos o tickers no encontrados.`;
+            }
+            setImportStatus(successMessage);
             
-            onImportPortfolio(importedItems, importFile?.name.replace(/\.csv$/i, '') || 'Cartera Importada');
+            if (importedItems.length > 0) {
+                 onImportPortfolio(importedItems, importFile?.name.replace(/\.csv$/i, '') || 'Cartera Importada');
+            }
             
-            setImportStatus(`¡Éxito! ${importedItems.length} registros importados. Tu cartera ha sido actualizada.`);
             setImportFile(null);
             if(fileInputRef.current) fileInputRef.current.value = "";
             setTimeout(() => setActiveView('portfolio'), 1500);

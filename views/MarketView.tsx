@@ -1,9 +1,12 @@
 
+
+
 import React, { useState, useCallback, useMemo } from 'react';
 import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, BarChart, Line, Brush, ReferenceLine } from 'recharts';
 import type { MarketAnalysisResult, MarketAssetMetric, SectorAverage, Currency, View, MarketAnalysisState, MarketAnalysisResultWithCriterion } from '../types';
 import { analyzeMarketSector } from '../services/geminiService';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { MarketAnalysisAssistant } from '../components/MarketAnalysisAssistant';
 
 interface MarketViewProps {
     currentEngine: string;
@@ -17,21 +20,7 @@ interface MarketViewProps {
     setAnalysisState: React.Dispatch<React.SetStateAction<MarketAnalysisState>>;
 }
 
-const SECTORS = [
-    'Technology', 'Healthcare', 'Financials', 'Consumer Discretionary', 
-    'Communication Services', 'Industrials', 'Consumer Staples', 'Energy', 
-    'Utilities', 'Real Estate', 'Materials', 'ETF', 'Cryptocurrencies'
-];
-const EXCHANGES = ['Wall Street (NYSE)', 'Nasdaq', 'IBEX 35', 'Bolsa de Tokio (TSE)', 'Bolsa de Fráncfort (DAX)', 'Bolsa de Londres (LSE)'];
-const CRITERIA_SUGGESTIONS = [
-    'Mayor capitalización de mercado',
-    'Mayor crecimiento reciente',
-    'Mejor rendimiento por dividendo'
-];
-
-
-// --- Reusable Sub-components for Displaying Results ---
-
+// Reusable Sub-components for Displaying Results
 const SentimentIndicator: React.FC<{ sentiment: 'Bullish' | 'Bearish' | 'Neutral' }> = ({ sentiment }) => {
     const styles: Record<string, { icon: string; color: string }> = {
         Bullish: { icon: 'fa-arrow-up', color: 'text-green-600 dark:text-green-500' },
@@ -176,7 +165,6 @@ const CustomAnalysisTooltip = ({ active, payload, label }: any) => {
 const AnalysisComparisonChart: React.FC<{ results: Record<string, MarketAnalysisResultWithCriterion[]> }> = ({ results }) => {
     const chartData = useMemo(() => {
         return Object.entries(results).flatMap(([sector, analyses]) =>
-            // FIX: Ensure 'analyses' is an array before calling .map() to prevent type errors.
             (Array.isArray(analyses) ? analyses : []).map(analysis => ({
                 name: `${sector} (${analysis.criterion.substring(0, 15)}...)`,
                 peRatio: analysis.sectorAverage.averagePeRatio,
@@ -210,37 +198,11 @@ const AnalysisComparisonChart: React.FC<{ results: Record<string, MarketAnalysis
 };
 
 // --- Main Market View Component ---
-
 export const MarketView: React.FC<MarketViewProps> = ({ currentEngine, onTokenUsage, onApiError, isApiBlocked, currency, setSearchQuery, setActiveView, analysisState, setAnalysisState }) => {
-    const [selectedSectors, setSelectedSectors] = useLocalStorage<string[]>('marketView_selectedSectors', []);
-    const [criteriaList, setCriteriaList] = useLocalStorage<string[]>('marketView_criteriaList', ['Mayor rentabilidad total']);
-    const [newCriterion, setNewCriterion] = useState('');
-    
+    const [wizardVisible, setWizardVisible] = useState(Object.keys(analysisState.results).length === 0);
     const { results: analysisResults, isLoading, error, openSectors } = analysisState;
 
-    const handleToggleSector = (sector: string) => {
-        setSelectedSectors(prev =>
-            prev.includes(sector)
-                ? prev.filter(s => s !== sector)
-                : [...prev, sector]
-        );
-    };
-
-    const handleAddCriterion = () => {
-        if (newCriterion.trim() && !criteriaList.includes(newCriterion.trim())) {
-            setCriteriaList([...criteriaList, newCriterion.trim()]);
-            setNewCriterion('');
-        }
-    };
-    
-    const handleRemoveCriterion = (criterionToRemove: string) => {
-        setCriteriaList(criteriaList.filter(c => c !== criterionToRemove));
-    };
-
-    const handleAnalyze = useCallback(async () => {
-        const sectorsForAnalysis = selectedSectors.length > 0 ? selectedSectors : [...SECTORS, ...EXCHANGES];
-        const criteriaForAnalysis = criteriaList;
-
+    const handleAnalyze = useCallback(async (sectorsForAnalysis: string[], criteriaForAnalysis: string[]) => {
         if (isApiBlocked) {
             setAnalysisState(s => ({ ...s, error: "Las funciones de IA están desactivadas por límite de cuota." }));
             return;
@@ -251,6 +213,7 @@ export const MarketView: React.FC<MarketViewProps> = ({ currentEngine, onTokenUs
             return;
         }
 
+        setWizardVisible(false);
         setAnalysisState({ isLoading: true, results: {}, error: null, openSectors: [] });
 
         try {
@@ -264,7 +227,7 @@ export const MarketView: React.FC<MarketViewProps> = ({ currentEngine, onTokenUs
 
             const results = await Promise.all(analysesPromises);
             
-            const successfulResults: { data: MarketAnalysisResult; usage: { totalTokens: number }; sector: string; criterion: string }[] = [];
+            const successfulResults: { data: MarketAnalysisResult; usage: any; sector: string; criterion: string }[] = [];
             const failedAnalyses: { sector: string; criterion: string; reason: any }[] = [];
             
             let totalUsage = { promptTokens: 0, candidateTokens: 0, totalTokens: 0 };
@@ -293,8 +256,10 @@ export const MarketView: React.FC<MarketViewProps> = ({ currentEngine, onTokenUs
 
             const groupedResults: Record<string, MarketAnalysisResultWithCriterion[]> = {};
             successfulResults.forEach(({ data, sector, criterion }) => {
-                if (!groupedResults[sector]) groupedResults[sector] = [];
-                groupedResults[sector].push({ ...data, criterion });
+                if (data.assets.length > 0) { // Only include results with assets
+                    if (!groupedResults[sector]) groupedResults[sector] = [];
+                    groupedResults[sector].push({ ...data, criterion });
+                }
             });
             
             const newOpenSectors = Object.keys(groupedResults).length > 0 ? [Object.keys(groupedResults)[0]] : [];
@@ -306,95 +271,50 @@ export const MarketView: React.FC<MarketViewProps> = ({ currentEngine, onTokenUs
             onApiError(e, 'Error General de Análisis', errorMessage);
             setAnalysisState({ isLoading: false, results: {}, error: errorMessage, openSectors: [] });
         }
-    }, [selectedSectors, criteriaList, isApiBlocked, currentEngine, currency, onTokenUsage, onApiError, setAnalysisState]);
+    }, [isApiBlocked, currentEngine, currency, onTokenUsage, onApiError, setAnalysisState]);
 
     const handleSelectAsset = (ticker: string) => {
         setSearchQuery(ticker);
         setActiveView('analysis');
     };
+    
+    const handleStartNewAnalysis = () => {
+        setAnalysisState({ isLoading: false, results: {}, error: null, openSectors: [] });
+        setWizardVisible(true);
+    };
+
+    if (wizardVisible) {
+        return <MarketAnalysisAssistant onAnalyze={handleAnalyze} isApiBlocked={isApiBlocked} />;
+    }
 
     return (
         <div className="mt-8">
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg space-y-6">
-                <div>
-                    <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">1. Seleccionar Sectores y Bolsas</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Si no se selecciona ninguno, se analizarán todos.</p>
-                    <div className="space-y-4">
-                        <div>
-                             <h4 className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Sectores</h4>
-                            <div className="flex flex-wrap gap-2 pt-2">
-                                {SECTORS.map(sector => (
-                                    <button
-                                        key={sector}
-                                        type="button"
-                                        onClick={() => handleToggleSector(sector)}
-                                        className={`px-3 py-1.5 text-sm font-semibold rounded-full border-2 transition ${selectedSectors.includes(sector) ? 'bg-red-600 border-red-600 text-white' : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-red-500 hover:text-red-500'}`}
-                                    >{sector}</button>
-                                ))}
-                            </div>
-                        </div>
-                        <div>
-                             <h4 className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Bolsas Principales</h4>
-                            <div className="flex flex-wrap gap-2 pt-2">
-                                {EXCHANGES.map(exchange => (
-                                     <button
-                                        key={exchange}
-                                        type="button"
-                                        onClick={() => handleToggleSector(exchange)}
-                                        className={`px-3 py-1.5 text-sm font-semibold rounded-full border-2 transition ${selectedSectors.includes(exchange) ? 'bg-red-600 border-red-600 text-white' : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-red-500 hover:text-red-500'}`}
-                                    >{exchange}</button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                 <div>
-                    <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">2. Definir Criterios de Análisis</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Define los criterios para el análisis. Puedes añadir más desde las sugerencias o escribir uno personalizado.</p>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">Sugerencias:</div>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                        {CRITERIA_SUGGESTIONS.map(c => (
-                            <button
-                                key={c}
-                                type="button"
-                                onClick={() => { if (!criteriaList.includes(c)) setCriteriaList(prev => [...prev, c]) }}
-                                disabled={criteriaList.includes(c)}
-                                className="px-2.5 py-1 text-xs font-semibold rounded-full border transition disabled:opacity-50 disabled:cursor-not-allowed bg-slate-50 dark:bg-slate-700/50 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-slate-500"
-                            >
-                                + {c}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-2 mb-2">
-                        <input type="text" value={newCriterion} onChange={e => setNewCriterion(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCriterion()} placeholder="Ej: Mayor crecimiento de ingresos" className="flex-grow h-10 px-3 py-2 border border-slate-300 rounded-lg dark:bg-slate-900 dark:border-slate-600" />
-                        <button onClick={handleAddCriterion} className="h-10 px-4 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600">&uarr; Añadir</button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        {/* FIX: Ensure 'criteriaList' is an array before calling .map() to prevent type errors. */}
-                        {(Array.isArray(criteriaList) ? criteriaList : []).map(c => (
-                            <div key={c} className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-sm font-medium pl-3 pr-1 py-1 rounded-full">
-                                <span>{c}</span>
-                                <button onClick={() => handleRemoveCriterion(c)} className="w-5 h-5 rounded-full hover:bg-red-200 dark:hover:bg-red-800/50 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">&times;</button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-center">
-                    <button 
-                        onClick={handleAnalyze} 
-                        disabled={isLoading || isApiBlocked || criteriaList.length === 0} 
-                        className="w-full sm:w-auto h-12 px-10 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-500 active:bg-red-700 transition flex items-center justify-center disabled:bg-red-300 dark:disabled:bg-red-800 disabled:cursor-not-allowed text-lg"
-                        title={criteriaList.length === 0 ? "Añade al menos un criterio para analizar" : undefined}
-                    >
-                        {isLoading ? <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="http://www.w3.org/2000/svg"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : <><i className="fas fa-search mr-3"></i>Analizar Mercado</>}
-                    </button>
-                </div>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200">Resultados del Análisis de Mercado</h2>
+                <button
+                    onClick={handleStartNewAnalysis}
+                    className="px-4 py-2 bg-slate-800 text-white font-semibold rounded-lg hover:bg-slate-700 active:bg-slate-900 transition text-sm flex items-center justify-center gap-2 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-300"
+                >
+                    <i className="fas fa-arrow-left"></i>
+                    <span>Nuevo Análisis</span>
+                </button>
             </div>
+            
+            {isLoading && (
+                <div className="text-center p-8">
+                    <svg className="animate-spin h-8 w-8 text-red-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="http://www.w3.org/2000/svg">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p className="mt-4 text-lg font-semibold text-slate-600 dark:text-slate-300">Analizando el mercado...</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Esto puede tardar unos segundos.</p>
+                </div>
+            )}
             
             {error && <p className="mt-4 text-center text-red-600 dark:text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">{error}</p>}
             
-            {Object.keys(analysisResults).length > 0 && (
-                <div className="mt-8">
+            {!isLoading && Object.keys(analysisResults).length > 0 && (
+                <div>
                     <AnalysisComparisonChart results={analysisResults} />
 
                     <div className="space-y-4 mt-8">
@@ -424,6 +344,13 @@ export const MarketView: React.FC<MarketViewProps> = ({ currentEngine, onTokenUs
                             </div>
                         ))}
                     </div>
+                </div>
+            )}
+             {!isLoading && Object.keys(analysisResults).length === 0 && !error && (
+                 <div className="text-center mt-12 py-8 bg-white dark:bg-slate-800 rounded-xl shadow-lg">
+                    <i className="fas fa-search text-5xl text-slate-300 dark:text-slate-600"></i>
+                    <h2 className="mt-4 text-2xl font-semibold text-slate-700 dark:text-slate-200">Análisis Completado Sin Resultados</h2>
+                    <p className="mt-2 text-slate-500 dark:text-slate-400">La IA no encontró activos que coincidieran con los criterios especificados. Intenta con una selección diferente.</p>
                 </div>
             )}
         </div>
