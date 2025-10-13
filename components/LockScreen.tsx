@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 
 // SVG Icons as React components for better control
@@ -112,7 +113,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
                 {isHintVisible && (
                     <div className="mt-2 text-slate-600 dark:text-slate-400 text-xs text-center p-2 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
                         <p><strong className="font-mono">Pista:</strong> Día de la semana (L=1), Minuto (mm), Día del mes (dd)</p>
-                        <p className="font-mono">Ej: Martes, 10:35, día 8 -> 23508</p>
+                        <p className="font-mono">{'Ej: Martes, 10:35, día 8 -> 23508'}</p>
                     </div>
                 )}
             </div>

@@ -1,7 +1,5 @@
-
-
 import React, { useState, useEffect } from 'react';
-import type { GlobalAnalysisState } from '../types';
+import type { GlobalAnalysisState, Currency } from '../types';
 import { formatTextToHtml } from '../utils/formatter';
 import { SentimentBadge } from './SentimentBadge';
 
@@ -14,11 +12,12 @@ interface GlobalAnalysisProps {
     includedAnalyzedCount: number;
     onDownloadReport: () => void;
     isAnyVectorLoading?: boolean;
+    currency: Currency;
 }
 
 export const GlobalAnalysis: React.FC<GlobalAnalysisProps> = ({ 
     analysis, onCalculate, isStale, isApiBlocked, totalAnalyzedCount, 
-    includedAnalyzedCount, onDownloadReport, isAnyVectorLoading
+    includedAnalyzedCount, onDownloadReport, isAnyVectorLoading, currency
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -68,6 +67,13 @@ export const GlobalAnalysis: React.FC<GlobalAnalysisProps> = ({
                         {analysis.content && !analysis.isLoading && <SentimentBadge score={analysis.content.sentiment} />}
                         {analysis.content && <span className="text-xs text-slate-500 dark:text-slate-400">(Calculado con {analysis.calculatedWithVectorCount} vectores)</span>}
                     </button>
+                    {analysis.content?.limitBuyPrice && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 ml-3" title="Precio Límite de Compra Sugerido por la IA">
+                            <i className="fas fa-bullseye text-orange-500"></i>
+                            <span className="font-semibold">Límite:</span>
+                            <span className="font-mono">{analysis.content.limitBuyPrice.toLocaleString('es-ES', { style: 'currency', currency: currency })}</span>
+                        </div>
+                    )}
                 </div>
                  <div className="flex items-center gap-2 flex-shrink-0">
                     <button 

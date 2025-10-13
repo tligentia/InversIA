@@ -370,6 +370,7 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
                                         includedAnalyzedCount={includedAnalyzedCount}
                                         onDownloadReport={handleOpenExportModal}
                                         isAnyVectorLoading={isAnyVectorLoading}
+                                        currency={currency}
                                     />
                                     <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-xl shadow-lg">
                                         <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3 mb-4 flex-wrap gap-2">
@@ -406,6 +407,7 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
                                                     onDelete={handleDeleteCustomVector}
                                                     onToggleInclusion={() => handleToggleVectorInclusion(vector.title)}
                                                     isApiBlocked={isQuotaExhausted}
+                                                    currency={currency}
                                                 />
                                             ))}
                                             <div className="md:col-span-2 bg-slate-50/70 dark:bg-slate-800/50 rounded-lg p-4 flex items-center gap-3 border-2 border-dashed border-slate-300 dark:border-slate-600">

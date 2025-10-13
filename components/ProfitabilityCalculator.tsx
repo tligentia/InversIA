@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import type { Asset, CalculatorState, Currency } from '../types';
-import { getAssetPriceOnDate, getAssetFuturePricePrediction } from '../services/geminiService';
+import { getAssetPriceOnDate, getAssetFuturePricePrediction, getLimitBuyPrice } from '../services/geminiService';
 import { AnomalousPriceError } from '../types';
 
 interface ProfitabilityCalculatorProps {
@@ -57,14 +57,15 @@ export const ProfitabilityCalculator: React.FC<ProfitabilityCalculatorProps> = (
         endDate,
         startPriceInput,
         endPriceInput,
-        inflationRate
+        inflationRate,
+        limitBuyPrice = ''
     } = initialState;
 
     const handleChange = (field: keyof CalculatorState, value: string) => {
         onStateChange({ ...initialState, [field]: value });
     };
 
-    const handleFetchPrices = async () => {
+    const handleFetchPricesAndLimit = async () => {
         setIsFetchingPrices(true);
         setError(null);
         setResult(null);
@@ -82,53 +83,93 @@ export const ProfitabilityCalculator: React.FC<ProfitabilityCalculatorProps> = (
             const endPricePromise = endDate > todayStr
                 ? getAssetFuturePricePrediction(asset, endDate, currentEngine, currency)
                 : getAssetPriceOnDate(asset, endDate, currentEngine, currentPrice, currency);
+
+            const limitPricePromise = getLimitBuyPrice(asset, currentEngine, currency);
             
-            const [startPriceResponse, endPriceResponse] = await Promise.all([
+            const [startPriceResult, endPriceResult, limitPriceResult] = await Promise.allSettled([
                 startPricePromise,
-                endPricePromise
+                endPricePromise,
+                limitPricePromise,
             ]);
 
-            const combinedUsage = {
-                promptTokens: (startPriceResponse?.usage.promptTokens ?? 0) + (endPriceResponse?.usage.promptTokens ?? 0),
-                candidateTokens: (startPriceResponse?.usage.candidateTokens ?? 0) + (endPriceResponse?.usage.candidateTokens ?? 0),
-                totalTokens: (startPriceResponse?.usage.totalTokens ?? 0) + (endPriceResponse?.usage.totalTokens ?? 0),
+            let totalUsage = { promptTokens: 0, candidateTokens: 0, totalTokens: 0 };
+            const accumulateUsage = (result: PromiseSettledResult<any>) => {
+                if(result.status === 'fulfilled' && result.value?.usage) {
+                    totalUsage.promptTokens += result.value.usage.promptTokens ?? 0;
+                    totalUsage.candidateTokens += result.value.usage.candidateTokens ?? 0;
+                    totalUsage.totalTokens += result.value.usage.totalTokens ?? 0;
+                }
             };
+            accumulateUsage(startPriceResult);
+            accumulateUsage(endPriceResult);
+            accumulateUsage(limitPriceResult);
 
-            if (combinedUsage.totalTokens > 0) {
-                onTokenUsage({ ...combinedUsage, model: currentEngine });
+            if (totalUsage.totalTokens > 0) {
+                onTokenUsage({ ...totalUsage, model: currentEngine });
+            }
+
+            const updatedState: CalculatorState = { ...initialState };
+            let errors: string[] = [];
+
+            // Process start price
+            if (startPriceResult.status === 'fulfilled') {
+                const fetchedStartPrice = startPriceResult.value?.data?.price;
+                 if (fetchedStartPrice === null || fetchedStartPrice === undefined || fetchedStartPrice <= 0) {
+                    errors.push(`No se pudo obtener el precio para la fecha de inicio (${startDate}).`);
+                } else {
+                    updatedState.startPriceInput = fetchedStartPrice.toString();
+                }
+            } else {
+                 if (startPriceResult.reason instanceof AnomalousPriceError) {
+                    updatedState.startPriceInput = startPriceResult.reason.price.toString();
+                    errors.push(startPriceResult.reason.message);
+                } else {
+                    const msg = startPriceResult.reason instanceof Error ? startPriceResult.reason.message : 'Error al obtener precio de inicio.';
+                    errors.push(msg);
+                    onApiError(startPriceResult.reason, 'Error en Precio de Inicio', msg);
+                }
             }
             
-            const fetchedStartPrice = startPriceResponse?.data?.price;
-            const fetchedEndPrice = endPriceResponse?.data?.price;
-
-            if (fetchedStartPrice === null || fetchedStartPrice === undefined || fetchedStartPrice <= 0) {
-                throw new Error(`No se pudo obtener el precio para la fecha de inicio (${startDate}).`);
+            // Process end price
+            if (endPriceResult.status === 'fulfilled') {
+                const fetchedEndPrice = endPriceResult.value?.data?.price;
+                if (fetchedEndPrice === null || fetchedEndPrice === undefined) {
+                    errors.push(`No se pudo obtener el precio para la fecha de fin (${endDate}).`);
+                } else {
+                     updatedState.endPriceInput = fetchedEndPrice.toString();
+                }
+            } else {
+                 if (endPriceResult.reason instanceof AnomalousPriceError) {
+                    updatedState.endPriceInput = endPriceResult.reason.price.toString();
+                    errors.push(endPriceResult.reason.message);
+                } else {
+                    const msg = endPriceResult.reason instanceof Error ? endPriceResult.reason.message : 'Error al obtener precio de fin.';
+                    errors.push(msg);
+                    onApiError(endPriceResult.reason, 'Error en Precio de Fin', msg);
+                }
             }
-             if (fetchedEndPrice === null || fetchedEndPrice === undefined) {
-                throw new Error(`No se pudo obtener el precio para la fecha de fin (${endDate}).`);
+
+            // Process limit price
+            if (limitPriceResult.status === 'fulfilled') {
+                const fetchedLimitPrice = limitPriceResult.value?.data?.price;
+                if (fetchedLimitPrice && typeof fetchedLimitPrice === 'number' && fetchedLimitPrice > 0) {
+                    updatedState.limitBuyPrice = fetchedLimitPrice.toString();
+                }
+            } else {
+                console.warn("Failed to fetch limit buy price:", limitPriceResult.reason);
+                // We don't add this to main error display to not block the calculator
             }
             
-            onStateChange({
-                ...initialState,
-                startPriceInput: fetchedStartPrice.toString(),
-                endPriceInput: fetchedEndPrice.toString()
-            });
+            onStateChange(updatedState);
+            if (errors.length > 0) {
+                setError(errors.join(' '));
+            }
 
         } catch (e) {
-            if (e instanceof AnomalousPriceError) {
-                const updatedState = { ...initialState };
-                if (e.message.includes(startDate)) {
-                    updatedState.startPriceInput = e.price.toString();
-                } else {
-                    updatedState.endPriceInput = e.price.toString();
-                }
-                onStateChange(updatedState);
-                setError(e.message);
-            } else {
-                const errorMessage = e instanceof Error ? e.message : 'Ocurrió un error al obtener los precios.';
-                setError(errorMessage);
-                onApiError(e, 'Error en Obtención de Precios', errorMessage);
-            }
+            // Catch errors from initial date checks
+            const errorMessage = e instanceof Error ? e.message : 'Ocurrió un error al obtener los precios.';
+            setError(errorMessage);
+            onApiError(e, 'Error en Obtención de Precios', errorMessage);
         } finally {
             setIsFetchingPrices(false);
         }
@@ -210,26 +251,27 @@ export const ProfitabilityCalculator: React.FC<ProfitabilityCalculatorProps> = (
     ]);
 
     const inputClasses = "h-10 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-800 transition bg-white dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200 dark:focus:ring-slate-200";
-    const labelClasses = "text-sm font-medium text-slate-600 dark:text-slate-300 mb-1";
+    const labelClasses = "text-sm font-medium text-slate-600 dark:text-slate-300 mb-1 block";
     const currencyFormatter = (value: number) => value.toLocaleString('es-ES', { style: 'currency', currency: currency });
+    const isAnyLoading = isFetchingPrices || isCalculating;
 
     return (
         <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-xl shadow-lg">
             <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-4">Calculadora de Rentabilidad de {asset.name}</h3>
             
             <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="sm:col-span-1 flex flex-col">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex flex-col">
                         <label htmlFor="investment" className={labelClasses}>{`Inversión (${currency})`}</label>
                         <input type="number" id="investment" value={investment} onChange={(e) => handleChange('investment', e.target.value)} placeholder="Ej: 1000" className={inputClasses} />
                     </div>
-                     <div className="sm:col-span-1 flex flex-col">
+                     <div className="flex flex-col">
                         <label htmlFor="inflation" className={labelClasses}>Inflación Anual (%)</label>
                         <input type="number" id="inflation" value={inflationRate} onChange={(e) => handleChange('inflationRate', e.target.value)} placeholder="Ej: 3" className={inputClasses} />
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex flex-col">
                         <label htmlFor="start-date" className={labelClasses}>Fecha Inicio</label>
                         <input type="date" id="start-date" value={startDate} onChange={(e) => handleChange('startDate', e.target.value)} className={inputClasses} />
@@ -238,16 +280,31 @@ export const ProfitabilityCalculator: React.FC<ProfitabilityCalculatorProps> = (
                         <label htmlFor="end-date" className={labelClasses}>Fecha Fin</label>
                         <input type="date" id="end-date" value={endDate} onChange={(e) => handleChange('endDate', e.target.value)} className={inputClasses} />
                     </div>
-                     <button
+                </div>
+
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <button
                         type="button"
-                        onClick={handleFetchPrices}
-                        disabled={isFetchingPrices || isCalculating}
+                        onClick={handleFetchPricesAndLimit}
+                        disabled={isAnyLoading}
                         className="h-10 w-full flex items-center justify-center bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 active:bg-slate-300 transition disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed border border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 dark:border-slate-600 dark:disabled:bg-slate-700/50"
                     >
                         {isFetchingPrices ? (
                             <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="http://www.w3.org/2000/svg"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                         ) : (
-                            <><i className="fas fa-download mr-2"></i>Obtener Precios</>
+                            <><i className="fas fa-download mr-2"></i>Obtener Precios y Límite</>
+                        )}
+                    </button>
+                     <button
+                        type="button"
+                        onClick={handleCalculate}
+                        disabled={isAnyLoading || !startPriceInput || !endPriceInput}
+                        className="h-10 w-full flex items-center justify-center bg-slate-800 text-white font-semibold rounded-lg hover:bg-slate-700 active:bg-slate-900 transition disabled:bg-slate-400 disabled:cursor-not-allowed dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-300 dark:active:bg-slate-400"
+                    >
+                        {isCalculating ? (
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="http://www.w3.org/2000/svg"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        ) : (
+                            <><i className="fas fa-calculator mr-2"></i>Calcular</>
                         )}
                     </button>
                 </div>
@@ -261,18 +318,15 @@ export const ProfitabilityCalculator: React.FC<ProfitabilityCalculatorProps> = (
                         <label htmlFor="end-price" className={labelClasses}>{`Precio Final (${currency})`}</label>
                         <input type="number" id="end-price" value={endPriceInput} onChange={(e) => handleChange('endPriceInput', e.target.value)} placeholder="Precio de venta" className={inputClasses} />
                     </div>
-                    <button
-                        type="button"
-                        onClick={handleCalculate}
-                        disabled={isCalculating || isFetchingPrices || !startPriceInput || !endPriceInput}
-                        className="h-10 w-full flex items-center justify-center bg-slate-800 text-white font-semibold rounded-lg hover:bg-slate-700 active:bg-slate-900 transition disabled:bg-slate-400 disabled:cursor-not-allowed dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-300 dark:active:bg-slate-400"
-                    >
-                        {isCalculating ? (
-                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="http://www.w3.org/2000/svg"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        ) : (
-                            <><i className="fas fa-calculator mr-2"></i>Calcular</>
-                        )}
-                    </button>
+                    <div className="flex flex-col">
+                        <label htmlFor="limit-price" className={labelClasses}>Precio Límite Sugerido</label>
+                        <div id="limit-price" title="Precio de compra límite sugerido por la IA basado en análisis técnico." className={`${inputClasses} bg-slate-100 dark:bg-slate-800 flex items-center font-semibold text-slate-800 dark:text-slate-200`}>
+                            {isFetchingPrices 
+                                ? <span className="text-slate-500 text-sm italic">Calculando...</span> 
+                                : (limitBuyPrice ? currencyFormatter(parseFloat(limitBuyPrice)) : <span className="text-slate-500 font-normal">--</span>)
+                            }
+                        </div>
+                    </div>
                 </div>
             </div>
             

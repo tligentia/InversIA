@@ -49,6 +49,7 @@ export const CalculatorView: React.FC<CalculatorViewProps> = ({
             startPriceInput: '',
             endPriceInput: '',
             inflationRate: '3',
+            limitBuyPrice: '',
         };
     }, []);
 

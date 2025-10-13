@@ -1,6 +1,3 @@
-
-
-
 import React, { useMemo } from 'react';
 import type { Currency } from '../types';
 import { CONVERSION_RATES } from '../constants';
@@ -43,7 +40,7 @@ export const Footer: React.FC<FooterProps> = ({ tokenCount, totalCostUSD, userIp
                 
                 {/* Group 1: Version & IP */}
                 <div className="flex flex-col sm:flex-row items-center gap-y-2 sm:gap-x-4">
-                    <span className="font-bold text-red-700">Versión 2025.v9U</span>
+                    <span className="font-bold text-red-700">Versión 2025.v10D</span>
                     {userIp && (
                         <div className="flex items-baseline gap-1.5">
                             <span>IP:</span>

@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { Portfolio, PortfolioItem } from '../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,7 +10,7 @@ export function usePortfolios() {
     // Effect to ensure there's always at least one portfolio and an active one
     // This runs implicitly via useLocalStorage's initial state and updates.
     // We add an explicit check to handle edge cases on first load or data corruption.
-    useMemo(() => {
+    useEffect(() => {
         if (portfolios.length === 0) {
             const defaultPortfolio: Portfolio = { id: uuidv4(), name: 'Cartera Principal', items: [] };
             setPortfolios([defaultPortfolio]);

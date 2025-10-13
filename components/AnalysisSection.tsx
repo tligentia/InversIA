@@ -1,7 +1,5 @@
-
-
 import React, { useState } from 'react';
-import type { AnalysisVector } from '../types';
+import type { AnalysisVector, Currency } from '../types';
 import { formatTextToHtml } from '../utils/formatter';
 import { SentimentBadge } from './SentimentBadge';
 import { VECTOR_DESCRIPTIONS } from '../constants';
@@ -12,9 +10,10 @@ interface AnalysisSectionProps {
     onDelete: (title: string) => void;
     isApiBlocked?: boolean;
     onToggleInclusion: () => void;
+    currency: Currency;
 }
 
-export const AnalysisSection: React.FC<AnalysisSectionProps> = ({ vector, onAnalyze, onDelete, isApiBlocked, onToggleInclusion }) => {
+export const AnalysisSection: React.FC<AnalysisSectionProps> = ({ vector, onAnalyze, onDelete, isApiBlocked, onToggleInclusion, currency }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [isSourcesOpen, setIsSourcesOpen] = useState(false);
@@ -82,6 +81,12 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({ vector, onAnal
                         >
                             <i className="fas fa-times fa-sm"></i>
                         </button>
+                    )}
+                    {vector.content?.limitBuyPrice && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5" title="Precio Límite de Compra Sugerido por la IA">
+                            <i className="fas fa-bullseye text-orange-500"></i>
+                            <span className="font-mono">{vector.content.limitBuyPrice.toLocaleString('es-ES', { style: 'currency', currency: currency })}</span>
+                        </div>
                     )}
                     {vector.content && !vector.isLoading && <SentimentBadge score={vector.content.sentiment} />}
                     {vector.isLoading && (

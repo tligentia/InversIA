@@ -321,7 +321,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div className="mb-2 sm:mb-0">
                     <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">Clave API de Gemini</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md">
-                        Introduce tu clave API de Google AI Studio para usar las funciones de IA. Si eres el desarrollador, puedes escribir "ok" para usar la clave de desarrollo.
+                        Introduce tu clave API para usar las funciones de IA. Si eres el desarrollador, puedes escribir "ok" para usar la clave de desarrollo.
                     </p>
                 </div>
                 <div className="flex-shrink-0 sm:w-96 text-right">

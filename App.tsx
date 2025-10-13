@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { SearchBar } from './components/SearchBar';
 import { AssetSelection } from './components/AssetSelection';
-import { getAssetInfo, getAvailableTextModels, initializeGenAI } from './services/geminiService';
+import { getAssetInfo, getAvailableTextModels, initializeGemini } from './services/geminiService';
 import { HistoryItem, AppError, QuotaExceededError, Asset, View, AnalysisSession, Theme, Currency, Portfolio, PortfolioItem, MarketAnalysisState, ApiKeyNotSetError, TokenUsageRecord } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { ErrorDisplay } from './components/ErrorDisplay';
@@ -123,7 +123,7 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
 
     // --- Effects ---
     useEffect(() => {
-        initializeGenAI(apiKey);
+        initializeGemini(apiKey);
     }, [apiKey]);
     
     useEffect(() => {
@@ -280,6 +280,7 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
                 startPriceInput: '',
                 endPriceInput: '',
                 inflationRate: '3',
+                limitBuyPrice: '',
             },
         };
         

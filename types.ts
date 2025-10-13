@@ -42,6 +42,7 @@ export interface AnalysisContent {
     summary: string;
     fullText: string;
     sentiment: number;
+    limitBuyPrice?: number;
 }
 
 export interface AiAnswer {
@@ -123,6 +124,7 @@ export interface CalculatorState {
     startPriceInput: string;
     endPriceInput: string;
     inflationRate: string;
+    limitBuyPrice?: string;
 }
 
 export interface AnalysisSession {

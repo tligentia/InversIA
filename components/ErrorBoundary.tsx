@@ -10,12 +10,13 @@ interface State {
 }
 
 class ErrorBoundary extends Component<Props, State> {
-  // FIX: Replaced the constructor with a more modern and robust state initializer and an arrow function for the event handler.
-  // This resolves errors related to accessing `this.state` and `this.props` before they are set up.
-  public state: State = {
-    hasError: false,
-    error: undefined,
-  };
+  // FIX: The previous implementation was causing a TypeScript error where `this.props` was not
+  // recognized. Reverting to a standard constructor-based class component and explicitly
+  // calling `super(props)` is the most robust way to ensure component properties are initialized correctly.
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false };
+  }
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
@@ -24,7 +25,7 @@ class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
-    
+
   handleReload = () => {
     window.location.reload();
   }

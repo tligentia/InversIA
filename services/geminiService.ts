@@ -3,7 +3,7 @@ import { Asset, Source, AnalysisContent, QuotaExceededError, AiAnswer, ChatMessa
 
 let ai: GoogleGenAI | null = null;
 
-export function initializeGenAI(apiKey: string | null) {
+export function initializeGemini(apiKey: string | null) {
     if (apiKey) {
         ai = new GoogleGenAI({ apiKey });
     } else {
@@ -300,8 +300,9 @@ export async function getAssetAnalysis(asset: Asset, vector: string, engine: str
 2.  Redacta un análisis detallado y profundo en el campo \`fullText\`.
 3.  Crea un resumen conciso y directo de 1-2 frases del análisis completo en el campo \`summary\`.
 4.  **Evalúa el sentimiento** del análisis en una escala de -10 (muy negativo) a +10 (muy positivo) y ponlo en el campo numérico \`sentiment\`.
-5.  Formatea la salida como un objeto JSON con tres claves: 'sentiment' (number), 'summary' (string) y 'fullText' (string).
-6.  **IMPORTANTE**: Asegúrate de que cualquier comilla doble (") dentro de los textos de 'summary' o 'fullText' esté debidamente escapada con una barra invertida (p. ej., \\"texto con comillas\\"). Además, cualquier salto de línea dentro de los campos de texto debe ser escapado como \\n.
+5.  **Calcula el Precio Límite de Compra**: Si este vector está relacionado con análisis técnico, valoración o puntos de entrada (p.ej., 'Análisis Técnico', 'Opinión de expertos'), calcula un precio de compra límite tácticamente bueno basado en la información. Ponlo en el campo numérico \`limitBuyPrice\`. Si el vector no es relevante para un precio de entrada, omite este campo.
+6.  Formatea la salida como un objeto JSON con las claves 'sentiment' (number), 'summary' (string), 'fullText' (string) y opcionalmente 'limitBuyPrice' (number).
+7.  **IMPORTANTE**: Asegúrate de que cualquier comilla doble (") dentro de los textos de 'summary' o 'fullText' esté debidamente escapada con una barra invertida (p. ej., \\"texto con comillas\\"). Además, cualquier salto de línea dentro de los campos de texto debe ser escapado como \\n.
 **Respuesta (JSON Válido Solamente)**:`;
 
     try {
@@ -352,9 +353,10 @@ ${existingAnalyses || "Aún no se han generado análisis específicos."}
 1.  **Síntesis Holística**: Utilizando la búsqueda web para obtener el contexto de mercado más reciente Y basándote en la información de los análisis proporcionados, sintetiza toda la información en una visión consolidada.
 2.  **Redacta la Visión Global**: En el campo \`fullText\`, escribe la visión completa. Estructúrala claramente con puntos clave sobre el potencial de crecimiento, los riesgos principales y un veredicto final (comprar, mantener, vender, observar). Utiliza viñetas (con el carácter '•') para mayor claridad.
 3.  **Crea el Resumen Ejecutivo**: En el campo \`summary\`, redacta una conclusión ejecutiva muy breve (1-2 frases) que resuma tu tesis de inversión.
-4.  **Evalúa un "Índice de Confianza Global"** en una escala de -10 (muy bajista) a +10 (muy alcista) y ponlo en el campo numérico \`sentiment\`.
-5.  **Formato**: Tu respuesta debe ser un objeto JSON con las claves 'sentiment' (number), 'summary' (string) y 'fullText' (string).
-6.  **IMPORTANTE**: Asegúrate de que cualquier comilla doble (") dentro de los textos de 'summary' o 'fullText' esté debidamente escapada con una barra invertida (p. ej., \\"texto con comillas\\"). Además, cualquier salto de línea dentro de los campos de texto debe ser escapado como \\n.
+4.  **Calcula el Precio Límite de Compra**: Basado en análisis técnico (soportes, volatilidad), determina un precio de compra límite tácticamente bueno y ponlo en el campo numérico \`limitBuyPrice\`. Este valor es opcional; si no es posible calcularlo con confianza, omite el campo.
+5.  **Evalúa un "Índice de Confianza Global"** en una escala de -10 (muy bajista) a +10 (muy alcista) y ponlo en el campo numérico \`sentiment\`.
+6.  **Formato**: Tu respuesta debe ser un objeto JSON con las claves 'sentiment' (number), 'summary' (string), 'fullText' (string) y opcionalmente 'limitBuyPrice' (number).
+7.  **IMPORTANTE**: Asegúrate de que cualquier comilla doble (") dentro de los textos de 'summary' o 'fullText' esté debidamente escapada con una barra invertida (p. ej., \\"texto con comillas\\"). Además, cualquier salto de línea dentro de los campos de texto debe ser escapado como \\n.
 **Respuesta (JSON Válido Solamente)**:`;
 
     try {
@@ -715,6 +717,47 @@ export async function getAssetFuturePricePrediction(asset: Asset, date: string, 
         throw new Error("La API no devolvió una predicción de precio válida.");
     }
     return result as GeminiResponse<{ price: number; currency: string } | null>;
+}
+
+export async function getLimitBuyPrice(asset: Asset, engine: string, currency: Currency): Promise<GeminiResponse<{ price: number } | null>> {
+    const prompt = `**Tarea Crítica**: Actúa como un API JSON. Tu única respuesta es un objeto JSON.
+**Contexto**: Eres un analista técnico de mercados financieros. Basándote en la situación actual del mercado para el activo "${asset.name}" (${asset.ticker}), debes calcular un "Precio Límite de Compra" recomendado.
+**Instrucciones**:
+1.  Usa la búsqueda web para analizar los gráficos de precios recientes, identificar niveles de soporte clave, y considerar la volatilidad actual.
+2.  Determina un precio de entrada que consideres tácticamente bueno para una nueva compra, un punto en el que el activo podría tener un retroceso antes de continuar una posible tendencia alcista, o un nivel de soporte fuerte.
+3.  Tu respuesta debe ser *exclusivamente* un objeto JSON válido con una única clave: 'price' (un número en ${currency.toUpperCase()}).
+**Respuesta (JSON Válido Solamente)**:`;
+
+    try {
+        const client = getClient();
+        const response = await client.models.generateContent({
+            model: engine,
+            contents: prompt,
+            config: {
+                tools: [{ googleSearch: {} }],
+                systemInstruction: "Eres un API de análisis técnico que devuelve un precio de compra recomendado en formato JSON.",
+                temperature: 0.2,
+            }
+        });
+        const usageMetadata = response.usageMetadata;
+        const usage: TokenUsage = {
+            promptTokens: usageMetadata?.promptTokenCount ?? 0,
+            candidateTokens: usageMetadata?.candidatesTokenCount ?? 0,
+            totalTokens: usageMetadata?.totalTokenCount ?? 0,
+        };
+        const text = response.text.trim();
+        if (!text) throw new Error("La API no devolvió un precio.");
+
+        const priceData = cleanAndParseJson<{ price: number }>(text, 'getLimitBuyPrice');
+        
+        if (priceData && typeof priceData.price === 'number') {
+            return { data: priceData, usage };
+        } else {
+             throw new Error("La API devolvió un formato de precio no válido.");
+        }
+    } catch (error) {
+        throw handleGeminiError(error, "No se pudo calcular el precio límite de compra.", engine);
+    }
 }
 
 /**
