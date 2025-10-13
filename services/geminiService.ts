@@ -63,9 +63,9 @@ function handleGeminiError(error: unknown, defaultMessage: string, model: string
         return error;
     }
 
-    // Handle network errors (e.g., offline)
-    if (error instanceof TypeError && error.message.includes('fetch')) {
-        return new Error("Error de red. Por favor, comprueba tu conexión a internet e inténtalo de nuevo." + debugInfo);
+    // Handle network errors (e.g., offline, ad-blockers, CORS)
+    if (error instanceof TypeError && (error.message.toLowerCase().includes('fetch') || error.message.toLowerCase().includes('load failed') || error.message.toLowerCase().includes('networkerror'))) {
+        return new Error("Error de red. Por favor, comprueba tu conexión a internet, desactiva extensiones de bloqueo de anuncios (ad-blockers) e inténtalo de nuevo." + debugInfo);
     }
 
     // Handle specific error classes we've defined
