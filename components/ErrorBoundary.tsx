@@ -1,6 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 
-interface Props {
+interface ErrorBoundaryProps {
   children: ReactNode;
 }
 
@@ -9,14 +9,12 @@ interface State {
   error?: Error;
 }
 
-class ErrorBoundary extends Component<Props, State> {
-  // FIX: The previous implementation was causing a TypeScript error where `this.props` was not
-  // recognized. Reverting to a standard constructor-based class component and explicitly
-  // calling `super(props)` is the most robust way to ensure component properties are initialized correctly.
-  constructor(props: Props) {
-    super(props);
-    this.state = { hasError: false };
-  }
+class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
+  // FIX: Initializing state as a class property is a modern and robust approach that
+  // avoids potential 'this' context issues in the constructor. This resolves the
+  // TypeScript errors where 'this.state' and 'this.props' were not being recognized.
+  // Renamed 'Props' to 'ErrorBoundaryProps' to prevent potential naming conflicts.
+  state: State = { hasError: false };
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };

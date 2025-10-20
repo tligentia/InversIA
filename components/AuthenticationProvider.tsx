@@ -4,7 +4,7 @@ import { LockScreen } from './LockScreen';
 import App from '../App';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Theme } from '../types';
-import { TRUSTED_IPS } from '../constants';
+import { TRUSTED_IP_PREFIXES } from '../constants';
 
 export const AuthenticationProvider: React.FC = () => {
     const [isLocked, setIsLocked] = useState<boolean>(true);
@@ -41,7 +41,7 @@ export const AuthenticationProvider: React.FC = () => {
                 const fetchedUserIp = data.ip;
                 setUserIp(fetchedUserIp);
 
-                if (TRUSTED_IPS.includes(fetchedUserIp)) {
+                if (TRUSTED_IP_PREFIXES.some(prefix => fetchedUserIp.startsWith(prefix))) {
                     setIsLocked(false);
                 }
             } catch (error) {

@@ -16,7 +16,7 @@ export const VECTOR_DESCRIPTIONS: Record<string, string> = {
   "Riesgos Clave": "Identifica y analiza los principales riesgos operativos, de mercado, regulatorios o competitivos que podrían afectar negativamente al activo.",
 };
 
-export const TRUSTED_IPS: string[] = ['83.45.135.87', '37.223.23.214'];
+export const TRUSTED_IP_PREFIXES: string[] = ['83.45.', '37.223.'];
 
 // Pricing per 1 Million Tokens in USD
 export const TOKEN_PRICING_USD: Record<string, { input: number; output: number }> = {

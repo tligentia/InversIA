@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { EngineSelector } from '../components/EngineSelector';
 import type { Theme, View, TokenUsageRecord, Currency, Portfolio, PortfolioItem } from '../types';
-import { TRUSTED_IPS } from '../constants';
+import { TRUSTED_IP_PREFIXES } from '../constants';
 import { TokenAccountingTable } from '../components/TokenAccountingTable';
 import { getAssetInfo } from '../services/geminiService';
 
@@ -102,7 +102,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
     useEffect(() => {
         // Automatically apply dev key for trusted IPs if no key is set when view loads
-        if (!apiKey && userIp && TRUSTED_IPS.includes(userIp)) {
+        if (!apiKey && userIp && TRUSTED_IP_PREFIXES.some(prefix => userIp.startsWith(prefix))) {
             setApiKey(specialKey);
             setKeyInput(specialKey);
             setSaveMessage('Clave de desarrollador aplicada automáticamente.');
