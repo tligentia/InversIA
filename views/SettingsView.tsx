@@ -94,7 +94,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const [showApiKey, setShowApiKey] = useState(false);
     
     // Obfuscated key construction to prevent simple string scraping
-    const specialKey = ['AIzaSyBM', 'sUgSbaut', 'AvjB5uuY', 'IXJS_R7p', 'Hwi3SW8'].join('');
+    const specialKey = ['AIzaSyAGl8', 'QkAD-aQo0b', 'QTK37C5MT', 'kqhhRdKU50'].join('');
 
     // Portfolio Importer State
     const [importFile, setImportFile] = useState<File | null>(null);

@@ -15,7 +15,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
         // Clave: STAR (insensible a mayúsculas/minúsculas)
         if (password.trim().toUpperCase() === 'STAR') {
             setIsUnlocking(true);
-            // Pequeño retardo para la animación de éxito antes de desmontar
+            // Pequeño retardo para la animación de salida
             setTimeout(() => {
                 onUnlock();
             }, 600);
@@ -31,14 +31,15 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
 
     return (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 transition-colors duration-500">
-            {/* Background decoration */}
+            {/* Decoración de fondo sutil */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-red-600/5 blur-[120px]"></div>
-                <div className="absolute top-[40%] -right-[10%] w-[40%] h-[40%] rounded-full bg-blue-600/5 blur-[120px]"></div>
+                <div className="absolute top-[40%] -right-[10%] w-[40%] h-[40%] rounded-full bg-slate-400/5 blur-[120px]"></div>
             </div>
 
             <div className={`relative w-full max-w-sm p-8 transition-all duration-700 ${isUnlocking ? 'opacity-0 scale-95 translate-y-4' : 'opacity-100 scale-100'}`}>
                 
+                {/* Cabecera */}
                 <div className="text-center mb-10">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 shadow-xl mb-6 ring-1 ring-slate-900/5 dark:ring-white/10">
                         <i className="fas fa-chart-pie text-3xl text-red-600"></i>
@@ -51,6 +52,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
                     </p>
                 </div>
 
+                {/* Formulario de Contraseña */}
                 <form onSubmit={handleLogin} className={`relative group ${error ? 'animate-shake' : ''}`}>
                     <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -60,7 +62,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className={`block w-full pl-11 pr-4 py-4 bg-white dark:bg-slate-800 border-2 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 transition-all duration-300 shadow-lg ${
+                            className={`block w-full pl-11 pr-12 py-4 bg-white dark:bg-slate-800 border-2 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 transition-all duration-300 shadow-lg ${
                                 error 
                                     ? 'border-red-500 focus:border-red-500' 
                                     : 'border-transparent focus:border-red-600 hover:border-slate-200 dark:hover:border-slate-700'
@@ -86,6 +88,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
                     )}
                 </form>
 
+                {/* Pie */}
                 <div className="mt-12 text-center">
                     <p className="text-xs text-slate-400 dark:text-slate-600 font-mono">
                         System v2025.v12A
