@@ -5,6 +5,7 @@ import { getAssetAnalysis, getAnalysisVectorsForAsset, getAssetQuote, getGlobalA
 import { Asset, HistoryItem, AnalysisVector, AppError, ReportData, AnalysisSession, GlobalAnalysisState, Currency } from '../types';
 import { ExportModal } from '../components/ExportModal';
 import { GlobalAnalysis } from '../components/GlobalAnalysis';
+import { convertCurrency } from '../utils/currency';
 
 interface AnalysisViewProps {
     sessions: AnalysisSession[];
@@ -60,6 +61,74 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
         if (!activeSession) return false;
         return activeSession.isAnalyzingAll || activeSession.analysisVectors.some(v => v.isLoading);
     }, [activeSession]);
+
+    // --- Currency Change Effect: Recalculate Prices & Convert Analysis Values ---
+    useEffect(() => {
+        if (!activeSession || activeSession.isInitializing) return;
+
+        const refreshDataForCurrency = async () => {
+            // 1. Refresh Live Quote
+            try {
+                const { data: quoteData, usage } = await getAssetQuote(activeSession.asset, currentEngine, currency);
+                if (usage.totalTokens > 0) onTokenUsage({ ...usage, model: currentEngine });
+                
+                if (quoteData) {
+                    updateSession(activeSession.id, {
+                        currentPrice: quoteData.price,
+                        changeValue: quoteData.changeValue,
+                        changePercentage: quoteData.changePercentage
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to refresh quote on currency change", e);
+            }
+
+            // 2. Convert Existing Analysis Values (Limit Prices)
+            // We do this locally to be instant and save tokens.
+            const updatedVectors = activeSession.analysisVectors.map(v => {
+                if (v.content && v.content.limitBuyPrice && v.content.currency && v.content.currency !== currency) {
+                    const newPrice = convertCurrency(v.content.limitBuyPrice, v.content.currency, currency);
+                    return {
+                        ...v,
+                        content: {
+                            ...v.content,
+                            limitBuyPrice: newPrice,
+                            currency: currency // Update the stored currency to match the new value
+                        }
+                    };
+                }
+                return v;
+            });
+
+            let updatedGlobalAnalysis = activeSession.globalAnalysis;
+            if (updatedGlobalAnalysis.content && updatedGlobalAnalysis.content.limitBuyPrice && updatedGlobalAnalysis.content.currency && updatedGlobalAnalysis.content.currency !== currency) {
+                const newGlobalPrice = convertCurrency(updatedGlobalAnalysis.content.limitBuyPrice, updatedGlobalAnalysis.content.currency, currency);
+                updatedGlobalAnalysis = {
+                    ...updatedGlobalAnalysis,
+                    content: {
+                        ...updatedGlobalAnalysis.content,
+                        limitBuyPrice: newGlobalPrice,
+                        currency: currency
+                    }
+                };
+            }
+
+            // Apply updates only if something actually changed to avoid render loops
+            const vectorsChanged = JSON.stringify(updatedVectors) !== JSON.stringify(activeSession.analysisVectors);
+            const globalChanged = JSON.stringify(updatedGlobalAnalysis) !== JSON.stringify(activeSession.globalAnalysis);
+
+            if (vectorsChanged || globalChanged) {
+                updateSession(activeSession.id, {
+                    analysisVectors: updatedVectors,
+                    globalAnalysis: updatedGlobalAnalysis
+                });
+            }
+        };
+
+        refreshDataForCurrency();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currency]); // Only trigger on currency change (and session/engine dependencies handled inside)
+
 
     // Effect to initialize a new session
     useEffect(() => {
@@ -177,8 +246,11 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
             const { data: analysisData, usage } = await getAssetAnalysis(asset, vectorTitle, currentEngine);
             onTokenUsage({ ...usage, model: currentEngine });
 
+            // Store currency metadata with content
+            const contentWithCurrency = { ...analysisData.content, currency: currency };
+
             setAnalysisVectors(prev =>
-                prev.map(v => v.title === vectorTitle ? { ...v, isLoading: false, content: analysisData.content, sources: analysisData.sources } : v)
+                prev.map(v => v.title === vectorTitle ? { ...v, isLoading: false, content: contentWithCurrency, sources: analysisData.sources } : v)
             );
             return true;
         } catch (e) {
@@ -203,8 +275,6 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
     
         const analysisPromises = vectorsToAnalyze.map(vector => runAnalysis(vector.title));
     
-        // We wait for all analyses to complete.
-        // The individual loading states within each vector are handled by runAnalysis.
         await Promise.all(analysisPromises);
     
         updateSession(activeSession.id, { isAnalyzingAll: false });
@@ -227,8 +297,11 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
             const { data: globalData, usage } = await getGlobalAnalysis(asset, analysesContext, currentEngine);
             onTokenUsage({ ...usage, model: currentEngine });
             
+            // Store currency metadata with content
+            const contentWithCurrency = { ...globalData.content, currency: currency };
+
             const newGlobalAnalysisState: GlobalAnalysisState = {
-                content: globalData.content,
+                content: contentWithCurrency,
                 sources: globalData.sources,
                 isLoading: false,
                 error: null,
@@ -327,8 +400,6 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
         if (!activeSession || !activeSession.globalAnalysis.content) return false;
         
         const lastUsedCount = activeSession.globalAnalysis.calculatedWithVectorCount ?? 0;
-        
-        // Stale if a new vector has been analyzed OR if the number of included vectors for calculation has changed.
         return analyzedVectorsCount > lastUsedCount || includedAnalyzedCount !== lastUsedCount;
     }, [activeSession, analyzedVectorsCount, includedAnalyzedCount]);
 

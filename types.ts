@@ -43,6 +43,7 @@ export interface AnalysisContent {
     fullText: string;
     sentiment: number;
     limitBuyPrice?: number;
+    currency?: string; // New field to track the currency of the limitBuyPrice
 }
 
 export interface AiAnswer {
