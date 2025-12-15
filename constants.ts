@@ -1,3 +1,4 @@
+
 export const VECTOR_DESCRIPTIONS: Record<string, string> = {
   "Análisis Socioeconómico Global": "Evalúa cómo factores macroeconómicos globales (tasas de interés, inflación, eventos geopolíticos) pueden impactar el rendimiento del activo.",
   "Sentimiento de los Mercados": "Mide el 'humor' general de los inversores (noticias, redes sociales) para prever movimientos a corto plazo, ya sea optimista (alcista) o pesimista (bajista).",
@@ -16,7 +17,7 @@ export const VECTOR_DESCRIPTIONS: Record<string, string> = {
   "Riesgos Clave": "Identifica y analiza los principales riesgos operativos, de mercado, regulatorios o competitivos que podrían afectar negativamente al activo.",
 };
 
-export const TRUSTED_IP_PREFIXES: string[] = ['83.45.', '37.223.'];
+export const TRUSTED_IP_PREFIXES: string[] = ['83.45.', '37.223.', '79.112.85.173'];
 
 // Pricing per 1 Million Tokens in USD
 export const TOKEN_PRICING_USD: Record<string, { input: number; output: number }> = {
