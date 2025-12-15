@@ -32,5 +32,5 @@ export const CONVERSION_RATES: Record<string, number> = {
     EUR: 0.93,
     GBP: 0.79,
     JPY: 157,
-    CAD: 1.37,
+    BTC: 0.00001, // Approximate BTC/USD rate for cost estimation
 };

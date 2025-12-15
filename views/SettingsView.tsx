@@ -64,8 +64,8 @@ const parseInvestingDate = (dateStr: string): string => { // e.g., "14/09/2025" 
 
 const parseInvestingNumber = (numStr: string): number => {
     if (typeof numStr !== 'string') return NaN;
-    // Remove currency symbols, quotes, and whitespace
-    const cleanedStr = numStr.replace(/"/g, '').replace(/€|\$|£|¥/g, '').trim();
+    // Remove currency symbols (including Bitcoin), quotes, and whitespace
+    const cleanedStr = numStr.replace(/"/g, '').replace(/€|\$|£|¥|₿/g, '').trim();
     if (!cleanedStr) return NaN;
 
     const hasComma = cleanedStr.includes(',');
@@ -94,6 +94,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const [showApiKey, setShowApiKey] = useState(false);
     
     // Obfuscated key construction to prevent simple string scraping
+    // Key: AIzaSyAGl8QkAD-aQo0bQTK37C5MTkqhhRdKU50
     const specialKey = ['AIzaSyAGl8', 'QkAD-aQo0b', 'QTK37C5MT', 'kqhhRdKU50'].join('');
 
     // Portfolio Importer State

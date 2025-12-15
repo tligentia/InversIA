@@ -102,7 +102,7 @@ export interface ReportData {
 
 export type View = 'analysis' | 'market' | 'portfolio' | 'calculator' | 'alternatives' | 'chat' | 'history' | 'settings' | 'cookie-policy' | 'charts';
 export type Theme = 'light' | 'dark' | 'system';
-export type Currency = 'EUR' | 'USD' | 'GBP' | 'JPY' | 'CAD';
+export type Currency = 'EUR' | 'USD' | 'GBP' | 'JPY' | 'BTC';
 
 // FIX: Add missing Period type definition for chart period selection.
 export type Period = '1D' | '1W' | '1M' | 'YTD' | '1Y' | '2Y' | '5Y';

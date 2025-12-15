@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import type { Currency } from '../types';
 
@@ -13,7 +12,7 @@ const currencies: { value: Currency; label: string }[] = [
     { value: 'USD', label: '$ USD' },
     { value: 'GBP', label: '£ GBP' },
     { value: 'JPY', label: '¥ JPY' },
-    { value: 'CAD', label: 'C$ CAD' },
+    { value: 'BTC', label: '₿ BTC' },
 ];
 
 export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ currency, setCurrency }) => {
