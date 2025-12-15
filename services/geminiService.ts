@@ -667,8 +667,10 @@ async function _getAssetPrice(
 }
 
 export async function getAssetQuote(asset: Asset, engine: string, currency: Currency): Promise<GeminiResponse<{ price: number; changeValue: number; changePercentage: number; currency: string } | null>> {
+    // We add the current timestamp to the prompt to force the model (and Google Search) to fetch fresh data and avoid caching.
     const prompt = `**Tarea Crítica**: Actúa como un API JSON. Tu única respuesta es un objeto JSON.
 **Activo**: "${asset.name}" (${asset.ticker})
+**Contexto Temporal**: La fecha y hora exacta de esta consulta es ${new Date().toISOString()}. Asegúrate de obtener el precio más reciente disponible en este momento.
 **Instrucciones**:
 1. Usa la búsqueda web para encontrar la cotización de mercado más reciente del activo.
 2. Tu respuesta debe ser *exclusivamente* un objeto JSON válido.
@@ -772,8 +774,8 @@ export async function getAvailableTextModels(): Promise<string[]> {
     
     // Provide a selection of actual models for the user.
     // 'gemini-2.5-flash' for speed and efficiency.
-    // 'gemini-2.5-pro' for higher quality analysis.
-    return ['gemini-2.5-flash', 'gemini-2.5-pro'];
+    // 'gemini-3-pro-preview' for advanced reasoning and higher quality analysis.
+    return ['gemini-2.5-flash', 'gemini-3-pro-preview'];
 }
 
 export async function analyzeMarketSector(sector: string, criteria: string, engine: string, currency: Currency): Promise<GeminiResponse<MarketAnalysisResult>> {

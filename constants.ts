@@ -21,9 +21,9 @@ export const TRUSTED_IP_PREFIXES: string[] = ['83.45.', '37.223.', '79.112.85.17
 
 // Pricing per 1 Million Tokens in USD
 export const TOKEN_PRICING_USD: Record<string, { input: number; output: number }> = {
-    'gemini-2.5-flash': { input: 0.35, output: 0.70 },
-    'gemini-2.5-pro': { input: 3.50, output: 7.00 },
-    'default': { input: 0.35, output: 0.70 }, // Fallback for any unknown models
+    'gemini-2.5-flash': { input: 0.10, output: 0.40 }, // Updated approx pricing
+    'gemini-3-pro-preview': { input: 3.50, output: 10.50 }, // Updated approx pricing for Pro
+    'default': { input: 0.10, output: 0.40 }, // Fallback for any unknown models
 };
 
 // Approximate conversion rates for display purposes
