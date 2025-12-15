@@ -94,8 +94,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const [showApiKey, setShowApiKey] = useState(false);
     
     // Obfuscated key construction to prevent simple string scraping
-    // Key: AIzaSyAGl8QkAD-aQo0bQTK37C5MTkqhhRdKU50
+    // Dev Key: AIzaSyAGl8QkAD-aQo0bQTK37C5MTkqhhRdKU50
     const specialKey = ['AIzaSyAGl8', 'QkAD-aQo0b', 'QTK37C5MT', 'kqhhRdKU50'].join('');
+    
+    // Co-Dev Key: AIzaSyAxrEuUSERo-6ikEqBftkirWA2age_6lXE
+    const coDevKey = ['AIzaSyAxrE', 'uUSERo-6ik', 'EqBftkirWA', '2age_6lXE'].join('');
 
     // Portfolio Importer State
     const [importFile, setImportFile] = useState<File | null>(null);
@@ -121,11 +124,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     
     const handleSaveApiKey = () => {
         setSaveMessage('');
+        const lowerInput = keyInput.toLowerCase().trim();
         
-        if (keyInput.toLowerCase() === 'ok') {
+        if (lowerInput === 'ok') {
             setApiKey(specialKey);
             setKeyInput(specialKey);
             setSaveMessage('Clave especial de desarrollador aplicada.');
+        } else if (lowerInput === 'cv') {
+            setApiKey(coDevKey);
+            setKeyInput(coDevKey);
+            setSaveMessage('Clave de co-desarrollador aplicada.');
         } else {
             setApiKey(keyInput.trim() || null);
             setSaveMessage('Clave API guardada.');
