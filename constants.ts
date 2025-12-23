@@ -17,7 +17,7 @@ export const VECTOR_DESCRIPTIONS: Record<string, string> = {
   "Riesgos Clave": "Identifica riesgos operativos, regulatorios o competitivos.",
 };
 
-export const APP_VERSION = 'v25.v12D';
+export const APP_VERSION = 'v25.v12E';
 
 // Added missing TRUSTED_IP_PREFIXES for automatic security features and developer bypass
 export const TRUSTED_IP_PREFIXES = [
