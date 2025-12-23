@@ -23,12 +23,12 @@ import { useCookieConsent } from './context/CookieConsentContext';
 import { CookieConsentBanner } from './components/CookieConsentBanner';
 import { CookieSettingsModal } from './components/CookieSettingsModal';
 import { CookiePolicyView } from './views/CookiePolicyView';
-import { TOKEN_PRICING_USD, APP_VERSION } from './constants';
+import { TOKEN_PRICING_USD } from './constants';
 import { ChartView } from './views/ChartView';
 import { usePortfolios } from './hooks/usePortfolios';
 import { AppMenu } from './Plantilla/AppMenu';
 
-// Importaciones de Plantilla
+// Importaciones de Plantilla (Las versiones maestras)
 import { Footer as TemplateFooter } from './Plantilla/Footer';
 import { Ajustes as AjustesModal } from './Plantilla/Ajustes';
 import { Cookies as CookiesModal } from './Plantilla/Cookies';
@@ -51,7 +51,7 @@ const navItems: { view: View; label: string; icon: string }[] = [
     { view: 'settings', label: 'Ajustes', icon: 'fa-cog' },
 ];
 
-export default function App({ userIp, theme, onThemeChange }: AppProps): React.ReactNode {
+export default function App({ userIp, theme }: AppProps): React.ReactNode {
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [analysisHistory, setAnalysisHistory] = useLocalStorage<HistoryItem[]>('assetAnalysisHistory', []);
     const [currentEngine, setCurrentEngine] = useLocalStorage<string>('selectedAiEngine', 'gemini-3-flash-preview');
@@ -95,10 +95,9 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
     const isLoadingEngines = availableEngines.length === 0;
     const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId), [sessions, activeSessionId]);
     const showSearchBar = !['market', 'history', 'settings', 'cookie-policy'].includes(activeView);
-    const isApiBlocked = isQuotaExhausted;
 
     useEffect(() => {
-        const loadAndSetModels = async () => {
+        const loadModels = async () => {
             try {
                 const engines = await getAvailableTextModels();
                 setAvailableEngines(engines);
@@ -107,7 +106,7 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
                 setAvailableEngines(['gemini-3-flash-preview']);
             }
         };
-        loadAndSetModels();
+        loadModels();
     }, []);
 
     const handleTokenUsage = useCallback((usage: any) => {
@@ -169,15 +168,15 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
 
     const renderActiveView = () => {
         switch(activeView) {
-            case 'analysis': return <AnalysisView sessions={sessions} activeSession={activeSession} onSessionChange={setSessions} onActiveSessionChange={setActiveSessionId} onCloseSession={(id) => setSessions(s => s.filter(x => x.id !== id))} onClearSessions={() => setSessions([])} suggestedAssets={suggestedAssets} onSelectAsset={handleAssetSelection} currentEngine={currentEngine} isQuotaExhausted={isApiBlocked} onApiError={handleApiError} onTokenUsage={handleTokenUsage} setHistory={setAnalysisHistory} currency={currency} onSendToPortfolio={(a, p) => { setAssetForPortfolio({ asset: a, price: p }); setActiveView('portfolio'); }} />;
-            case 'market': return <MarketView currentEngine={currentEngine} onTokenUsage={handleTokenUsage} onApiError={handleApiError} isApiBlocked={isApiBlocked} currency={currency} setSearchQuery={setSearchQuery} setActiveView={setActiveView} analysisState={marketAnalysisState} setAnalysisState={setMarketAnalysisState} />;
-            case 'portfolio': return <PortfolioView portfolios={portfolios} activePortfolio={activePortfolio} activePortfolioId={activePortfolioId} setActivePortfolioId={setActivePortfolioId} currency={currency} currentEngine={currentEngine} onTokenUsage={handleTokenUsage} onApiError={handleApiError} onSelectAsset={handleAssetSelection} isApiBlocked={isApiBlocked} assetForPortfolio={assetForPortfolio} onClearAssetForPortfolio={() => setAssetForPortfolio(null)} onNewPortfolio={addPortfolio} onRenamePortfolio={renamePortfolio} onDeletePortfolio={deletePortfolio} onAddAsset={addAssetToPortfolio} onRemoveAsset={removeAssetFromPortfolio} />;
+            case 'analysis': return <AnalysisView sessions={sessions} activeSession={activeSession} onSessionChange={setSessions} onActiveSessionChange={setActiveSessionId} onCloseSession={(id) => setSessions(s => s.filter(x => x.id !== id))} onClearSessions={() => setSessions([])} suggestedAssets={suggestedAssets} onSelectAsset={handleAssetSelection} currentEngine={currentEngine} isQuotaExhausted={isQuotaExhausted} onApiError={handleApiError} onTokenUsage={handleTokenUsage} setHistory={setAnalysisHistory} currency={currency} onSendToPortfolio={(a, p) => { setAssetForPortfolio({ asset: a, price: p }); setActiveView('portfolio'); }} />;
+            case 'market': return <MarketView currentEngine={currentEngine} onTokenUsage={handleTokenUsage} onApiError={handleApiError} isApiBlocked={isQuotaExhausted} currency={currency} setSearchQuery={setSearchQuery} setActiveView={setActiveView} analysisState={marketAnalysisState} setAnalysisState={setMarketAnalysisState} />;
+            case 'portfolio': return <PortfolioView portfolios={portfolios} activePortfolio={activePortfolio} activePortfolioId={activePortfolioId} setActivePortfolioId={setActivePortfolioId} currency={currency} currentEngine={currentEngine} onTokenUsage={handleTokenUsage} onApiError={handleApiError} onSelectAsset={handleAssetSelection} isApiBlocked={isQuotaExhausted} assetForPortfolio={assetForPortfolio} onClearAssetForPortfolio={() => setAssetForPortfolio(null)} onNewPortfolio={addPortfolio} onRenamePortfolio={renamePortfolio} onDeletePortfolio={deletePortfolio} onAddAsset={addAssetToPortfolio} onRemoveAsset={removeAssetFromPortfolio} />;
             case 'charts': return <ChartView activeSession={activeSession} theme={theme} />;
             case 'calculator': return <CalculatorView activeSession={activeSession} onSessionChange={setSessions} currentEngine={currentEngine} onTokenUsage={handleTokenUsage} onApiError={handleApiError} currency={currency} />;
-            case 'alternatives': return <AlternativesView activeSession={activeSession} onSessionChange={setSessions} currentEngine={currentEngine} onTokenUsage={handleTokenUsage} onApiError={handleApiError} onSelectAsset={handleAssetSelection} isApiBlocked={isApiBlocked} currency={currency} />;
-            case 'chat': return <ChatView activeSession={activeSession} onSessionChange={setSessions} currentEngine={currentEngine} onTokenUsage={handleTokenUsage} onApiError={handleApiError} isApiBlocked={isApiBlocked} />;
+            case 'alternatives': return <AlternativesView activeSession={activeSession} onSessionChange={setSessions} currentEngine={currentEngine} onTokenUsage={handleTokenUsage} onApiError={handleApiError} onSelectAsset={handleAssetSelection} isApiBlocked={isQuotaExhausted} currency={currency} />;
+            case 'chat': return <ChatView activeSession={activeSession} onSessionChange={setSessions} currentEngine={currentEngine} onTokenUsage={handleTokenUsage} onApiError={handleApiError} isApiBlocked={isQuotaExhausted} />;
             case 'history': return <HistoryView history={analysisHistory} onSelectHistoryItem={(item) => handleAssetSelection({ name: item.name, ticker: item.ticker, type: item.type })} onClearHistory={() => setAnalysisHistory([])} currency={currency} />;
-            case 'settings': return <SettingsView availableEngines={availableEngines} currentEngine={currentEngine} onEngineChange={setCurrentEngine} isApiBlocked={isApiBlocked} isBusy={isSearching} onClearAllData={() => { localStorage.clear(); window.location.reload(); }} userIp={userIp} setActiveView={setActiveView} tokenUsageHistory={tokenUsageHistory} onClearAccountingHistory={() => setTokenUsageHistory([])} currency={currency} onImportPortfolio={importAndMergePortfolio} onTokenUsage={handleTokenUsage} onApiError={handleApiError} />;
+            case 'settings': return <SettingsView availableEngines={availableEngines} currentEngine={currentEngine} onEngineChange={setCurrentEngine} isApiBlocked={isQuotaExhausted} isBusy={isSearching} onClearAllData={() => { localStorage.clear(); window.location.reload(); }} userIp={userIp} setActiveView={setActiveView} tokenUsageHistory={tokenUsageHistory} onClearAccountingHistory={() => setTokenUsageHistory([])} currency={currency} onImportPortfolio={importAndMergePortfolio} onTokenUsage={handleTokenUsage} onApiError={handleApiError} />;
             case 'cookie-policy': return <CookiePolicyView />;
             default: return null;
         }
@@ -211,10 +210,10 @@ export default function App({ userIp, theme, onThemeChange }: AppProps): React.R
                 <div className="max-w-6xl mx-auto">
                      {showSearchBar && (
                         <div className="bg-white dark:bg-neutral-900 p-4 rounded-3xl shadow-2xl shadow-gray-100 dark:shadow-none border border-gray-50 dark:border-neutral-800 flex flex-wrap items-center gap-4 mb-8">
-                            <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} onSearch={handleSearch} isLoading={isSearching || isLoadingEngines} isApiBlocked={isApiBlocked} />
+                            <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} onSearch={handleSearch} isLoading={isSearching || isLoadingEngines} isApiBlocked={isQuotaExhausted} />
                             <CurrencySelector currency={currency} setCurrency={setCurrency} />
                             { (sessions.length > 0) && (
-                                <button type="button" onClick={() => { if(confirm("¿Cerrar todas?")) setSessions([]) }} className="h-11 w-11 flex items-center justify-center bg-gray-50 text-gray-300 rounded-xl hover:bg-red-700 hover:text-white transition-all"><i className="fas fa-times"></i></button>
+                                <button type="button" onClick={() => { if(confirm("¿Cerrar todas las pestañas de análisis?")) setSessions([]) }} className="h-11 w-11 flex items-center justify-center bg-gray-50 text-gray-300 rounded-xl hover:bg-red-700 hover:text-white transition-all"><i className="fas fa-times"></i></button>
                             )}
                         </div>
                     )}

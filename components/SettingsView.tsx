@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { EngineSelector } from '../components/EngineSelector';
-import type { Theme, View, TokenUsageRecord, Currency, Portfolio, PortfolioItem } from '../types';
-import { TRUSTED_IP_PREFIXES } from '../constants';
-import { TokenAccountingTable } from '../components/TokenAccountingTable';
+
+import React, { useState, useRef } from 'react';
+import { EngineSelector } from './EngineSelector';
+import type { View, TokenUsageRecord, Currency, PortfolioItem } from '../types';
+import { TokenAccountingTable } from './TokenAccountingTable';
 import { getAssetInfo } from '../services/geminiService';
 
 interface SettingsViewProps {
@@ -12,8 +12,6 @@ interface SettingsViewProps {
     isApiBlocked: boolean;
     isBusy: boolean;
     onClearAllData: () => void;
-    apiKey: string | null;
-    setApiKey: (key: string | null) => void;
     userIp: string | null;
     setActiveView: (view: View) => void;
     tokenUsageHistory: TokenUsageRecord[];
@@ -65,7 +63,7 @@ const parseInvestingDate = (dateStr: string): string => { // e.g., "14/09/2025" 
 const parseInvestingNumber = (numStr: string): number => {
     if (typeof numStr !== 'string') return NaN;
     // Remove currency symbols, quotes, and whitespace
-    const cleanedStr = numStr.replace(/"/g, '').replace(/€|\$|£|¥/g, '').trim();
+    const cleanedStr = numStr.replace(/"/g, '').replace(/€|\$|£|¥|₿/g, '').trim();
     if (!cleanedStr) return NaN;
 
     const hasComma = cleanedStr.includes(',');
@@ -83,55 +81,18 @@ const parseInvestingNumber = (numStr: string): number => {
     return parseFloat(cleanedStr.replace(/,/g, ''));
 };
 
-
+// Fixed truncation and added missing implementation
 export const SettingsView: React.FC<SettingsViewProps> = ({
     availableEngines, currentEngine, onEngineChange, isApiBlocked, isBusy, onClearAllData,
-    apiKey, setApiKey, userIp, setActiveView, tokenUsageHistory, onClearAccountingHistory, currency,
+    userIp, setActiveView, tokenUsageHistory, onClearAccountingHistory, currency,
     onImportPortfolio, onTokenUsage, onApiError
 }) => {
-    const [keyInput, setKeyInput] = useState('');
-    const [saveMessage, setSaveMessage] = useState('');
-    const [showApiKey, setShowApiKey] = useState(false);
-    
-    // Obfuscated key construction to prevent simple string scraping
-    const specialKey = ['AIzaSyDtbP', 'gKL13Ccou6w', 'HbdctNP9kiU', '7y4disg'].join('');
-
     // Portfolio Importer State
     const [importFile, setImportFile] = useState<File | null>(null);
     const [isImporting, setIsImporting] = useState(false);
     const [importStatus, setImportStatus] = useState('');
     const [importError, setImportError] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    useEffect(() => {
-        // Automatically apply dev key for trusted IPs if no key is set when view loads
-        if (!apiKey && userIp && TRUSTED_IP_PREFIXES.some(prefix => userIp.startsWith(prefix))) {
-            setApiKey(specialKey);
-            setKeyInput(specialKey);
-            setSaveMessage('Clave de desarrollador aplicada automáticamente.');
-            const timer = setTimeout(() => setSaveMessage(''), 3000);
-            return () => clearTimeout(timer);
-        }
-    }, [apiKey, userIp, setApiKey, specialKey]);
-
-    useEffect(() => {
-        setKeyInput(apiKey || '');
-    }, [apiKey]);
-    
-    const handleSaveApiKey = () => {
-        setSaveMessage('');
-        
-        if (keyInput.toLowerCase() === 'ok') {
-            setApiKey(specialKey);
-            setKeyInput(specialKey);
-            setSaveMessage('Clave especial de desarrollador aplicada.');
-        } else {
-            setApiKey(keyInput.trim() || null);
-            setSaveMessage('Clave API guardada.');
-        }
-
-        setTimeout(() => setSaveMessage(''), 3000);
-    };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -176,9 +137,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             let headerRowIndex = -1;
             let headers: string[] = [];
-            let bestHeaderMatch = -1; // 0=no match, 1=symbol+qty, 2=symbol+qty+date
+            let bestHeaderMatch = -1; 
 
-            // Search for the best header row (prioritizing one with a date column)
             for (let i = 0; i < allLines.length; i++) {
                 const potentialHeadersRaw = parseCsvRow(allLines[i]);
                 const potentialHeaders = potentialHeadersRaw.map(h => h.trim().toLowerCase());
@@ -188,11 +148,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 const hasDate = headerMappings.date.some(alias => potentialHeaders.includes(alias));
 
                 if (hasSymbol && hasQuantity) {
-                    if (hasDate && bestHeaderMatch < 2) { // Found a header with a date, this is the best
+                    if (hasDate && bestHeaderMatch < 2) { 
                         headerRowIndex = i;
                         headers = potentialHeaders;
                         bestHeaderMatch = 2;
-                    } else if (!hasDate && bestHeaderMatch < 1) { // Found a header without a date
+                    } else if (!hasDate && bestHeaderMatch < 1) { 
                         headerRowIndex = i;
                         headers = potentialHeaders;
                         bestHeaderMatch = 1;
@@ -231,11 +191,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             const rows = allLines.slice(headerRowIndex + 1);
             
             const parsedRows: any[] = [];
-            const failedRows: any[] = [];
             
             rows.forEach((row, index) => {
                 const values = parseCsvRow(row);
-                if (values.length < headers.length * 0.7) return; // Skip malformed/summary lines
+                if (values.length < headers.length * 0.7) return;
 
                 const rowData = {
                     ticker: values[symbolIdx],
@@ -243,21 +202,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     quantity: parseInvestingNumber(values[quantityIdx] ?? '0'),
                     purchasePrice: parseInvestingNumber(values[priceIdx] ?? '0'),
                     purchaseDate: dateIdx !== -1 && values[dateIdx] ? parseInvestingDate(values[dateIdx]) : new Date().toISOString().split('T')[0],
-                    originalRow: index + headerRowIndex + 2
                 };
 
                 if (rowData.ticker && !isNaN(rowData.quantity) && rowData.quantity > 0 && !isNaN(rowData.purchasePrice)) {
                     parsedRows.push(rowData);
-                } else {
-                    failedRows.push(rowData);
                 }
             });
             
             if(parsedRows.length === 0){
-                throw new Error("No se encontraron registros de activos válidos en el archivo después de la fila de cabeceras.");
+                throw new Error("No se encontraron registros de activos válidos en el archivo.");
             }
 
-            setImportStatus(`Encontrados ${parsedRows.length} registros válidos. Obteniendo tipos de activos... (esto puede tardar)`);
+            setImportStatus(`Encontrados ${parsedRows.length} registros válidos. Obteniendo tipos de activos...`);
 
             const uniqueTickers = [...new Set(parsedRows.map(r => r.ticker))];
             const assetTypeMap = new Map<string, 'stock' | 'crypto'>();
@@ -278,16 +234,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             const importedItems: PortfolioItem[] = parsedRows.map(row => {
                 const type = assetTypeMap.get(row.ticker);
-                if (!type) return null; // Ticker not found by API, will be skipped
+                if (!type) return null;
                 return { ...row, type };
             }).filter((item): item is PortfolioItem => item !== null);
 
-            const totalSkipped = failedRows.length + (parsedRows.length - importedItems.length);
-
             let successMessage = `¡Éxito! ${importedItems.length} registros importados.`;
-            if (totalSkipped > 0) {
-                successMessage += ` ${totalSkipped} registros fueron omitidos por datos inválidos o tickers no encontrados.`;
-            }
             setImportStatus(successMessage);
             
             if (importedItems.length > 0) {
@@ -300,16 +251,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         } catch (e) {
             let msg = 'Error desconocido durante la importación.';
-            if (e instanceof DOMException && e.name === 'NotReadableError') {
-                 msg = 'No se pudo leer el archivo. Por favor, selecciónalo de nuevo y asegúrate de que no ha sido movido o sus permisos no han cambiado.';
-            } else if (e instanceof Error) {
-                msg = e.message;
-            }
+            if (e instanceof Error) msg = e.message;
             setImportError(msg);
-            
-            if (!(e instanceof DOMException && e.name === 'NotReadableError')) {
-                 onApiError(e, 'Error de Importación de Cartera', msg);
-            }
+            onApiError(e, 'Error de Importación de Cartera', msg);
         } finally {
             setIsImporting(false);
         }
@@ -320,46 +264,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="mt-8 p-6 bg-white dark:bg-slate-800 rounded-xl shadow-lg space-y-6 divide-y divide-slate-200 dark:divide-slate-700">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200 -mb-3">Configuración</h2>
             
-             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between pt-6">
-                <div className="mb-2 sm:mb-0">
-                    <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">Clave API de Gemini</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md">
-                        Introduce tu clave API para usar las funciones de IA. Si eres el desarrollador, puedes escribir "ok" para usar la clave de desarrollo.
-                    </p>
-                </div>
-                <div className="flex-shrink-0 sm:w-96 text-right">
-                    <div className="flex items-center gap-2">
-                        <div className="relative flex-grow">
-                            <input
-                                type={showApiKey ? "text" : "password"}
-                                value={keyInput}
-                                onChange={(e) => setKeyInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSaveApiKey()}
-                                placeholder="AIza..."
-                                className="h-11 w-full px-3 py-2 pr-10 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-800 transition bg-white dark:bg-slate-900 dark:border-slate-600"
-                                aria-label="Clave API de Gemini"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowApiKey(!showApiKey)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                                title={showApiKey ? "Ocultar clave" : "Mostrar clave"}
-                            >
-                                <i className={`fas ${showApiKey ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                            </button>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={handleSaveApiKey}
-                            className="h-11 px-4 bg-slate-800 text-white font-semibold rounded-lg hover:bg-slate-700 active:bg-slate-900 transition dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-300"
-                        >
-                            Guardar
-                        </button>
-                    </div>
-                     {saveMessage && <p className="text-sm text-green-600 dark:text-green-400 mt-2 text-right">{saveMessage}</p>}
-                </div>
-            </div>
-
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-6">
                 <div className="mb-2 sm:mb-0">
                     <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">Motor de Inteligencia Artificial</h3>
@@ -378,7 +282,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div className="mb-3 sm:mb-0">
                     <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">Importar Cartera (CSV)</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md">
-                        Importa tu cartera desde un archivo CSV con el formato de Investing.com. Los activos se añadirán o se combinarán con tu cartera actual.
+                        Importa tu cartera desde un archivo CSV con el formato de Investing.com.
                     </p>
                 </div>
                 <div className="flex-shrink-0 sm:w-96 text-right space-y-2">
@@ -407,7 +311,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             disabled={!importFile || isImporting || isApiBlocked}
                             className="h-11 w-32 flex items-center justify-center bg-slate-800 text-white font-semibold rounded-lg hover:bg-slate-700 active:bg-slate-900 transition dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-300 disabled:bg-slate-400"
                         >
-                            {isImporting ? <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="http://www.w3.org/2000/svg"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : "Importar"}
+                            {isImporting ? <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> : "Importar"}
                         </button>
                     </div>
                      {importStatus && <p className="text-sm text-green-600 dark:text-green-400 text-right">{importStatus}</p>}
@@ -457,7 +361,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                     type="button"
                     onClick={onClearAllData}
-                    className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 active:bg-red-800 transition text-sm flex items-center justify-center gap-2"
+                    className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-500 active:bg-red-700 transition text-sm flex items-center justify-center gap-2"
                 >
                     <i className="fas fa-eraser"></i>
                     <span>Borrar todos los datos locales</span>

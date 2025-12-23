@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -8,7 +7,7 @@
     <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/assets/icon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 <style>
   @keyframes shake {
     10%, 90% { transform: translate3d(-1px, 0, 0); }
@@ -16,61 +15,35 @@
     30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
     40%, 60% { transform: translate3d(4px, 0, 0); }
   }
-  .animate-shake {
-    animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both;
-  }
+  .animate-shake { animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both; }
+  
   @keyframes pulse-red {
-    0% {
-        box-shadow: 0 0 0 0 rgba(185, 28, 28, 0.7);
-    }
-    70% {
-        box-shadow: 0 0 0 8px rgba(185, 28, 28, 0);
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(185, 28, 28, 0);
-    }
+    0% { box-shadow: 0 0 0 0 rgba(185, 28, 28, 0.7); }
+    70% { box-shadow: 0 0 0 8px rgba(185, 28, 28, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(185, 28, 28, 0); }
   }
-  .animate-pulse-red {
-      animation: pulse-red 2s infinite;
-  }
+  .animate-pulse-red { animation: pulse-red 2s infinite; }
+  
   @keyframes pulse-active {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.08); }
   }
-  .animate-pulse-active {
-    animation: pulse-active 2s ease-in-out infinite;
-  }
-  @keyframes placeholder-pulse {
-    50% {
-      opacity: 0.5;
-    }
-  }
-  .animate-placeholder-pulse::placeholder {
-    animation: placeholder-pulse 2s ease-in-out infinite;
-  }
-  /* Estilos base para scrollbar gris */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: #f1f1f1;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 3px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #555;
-  }
+  .animate-pulse-active { animation: pulse-active 2s ease-in-out infinite; }
+  
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
 </style>
 <script type="importmap">
 {
   "imports": {
-    "react/": "https://esm.sh/react@18.2.0/",
     "react": "https://esm.sh/react@18.2.0",
-    "@google/genai": "https://esm.sh/@google/genai@1.10.0",
-    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
     "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "@google/genai": "https://esm.sh/@google/genai@1.10.0",
     "jspdf": "https://esm.sh/jspdf@2.5.1",
     "html2canvas": "https://esm.sh/html2canvas@1.4.1",
     "docx": "https://esm.sh/docx@8.5.0",
@@ -81,9 +54,8 @@
 }
 </script>
 </head>
-<body class="bg-white font-sans pb-20 sm:pb-0 text-black dark:bg-neutral-950 dark:text-gray-100">
-    <!-- Llamada inicial React: Punto de montaje -->
+<body class="bg-white font-sans text-black dark:bg-neutral-950 dark:text-gray-100 pb-20 sm:pb-0 overflow-x-hidden">
     <div id="root"></div>
-</body>
     <script type="module" src="/index.tsx"></script>
+</body>
 </html>

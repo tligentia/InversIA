@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { EngineSelector } from '../components/EngineSelector';
 import type { Theme, View, TokenUsageRecord, Currency, Portfolio, PortfolioItem } from '../types';
-import { TRUSTED_IP_PREFIXES } from '../constants';
 import { TokenAccountingTable } from '../components/TokenAccountingTable';
 import { getAssetInfo } from '../services/geminiService';
 
@@ -365,7 +364,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                     type="button"
                     onClick={onClearAllData}
-                    className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 active:bg-red-800 transition text-sm flex items-center justify-center gap-2"
+                    className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-500 active:bg-red-700 transition text-sm flex items-center justify-center gap-2"
                 >
                     <i className="fas fa-eraser"></i>
                     <span>Borrar todos los datos locales</span>
