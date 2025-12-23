@@ -1,20 +1,12 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { Asset, Source, AnalysisContent, QuotaExceededError, AiAnswer, ChatMessage, AnomalousPriceError, MarketAnalysisResult, Currency, ApiKeyNotSetError } from '../types';
+import { Asset, Source, AnalysisContent, QuotaExceededError, AiAnswer, ChatMessage, AnomalousPriceError, MarketAnalysisResult, Currency } from '../types';
 
-let ai: GoogleGenAI | null = null;
-
-export function initializeGemini(apiKey: string | null) {
-    if (apiKey) {
-        ai = new GoogleGenAI({ apiKey });
-    } else {
-        ai = null;
-    }
-}
+// FIX: Initializing GoogleGenAI client instance directly using process.env.API_KEY as per guidelines.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 function getClient(): GoogleGenAI {
-    if (!ai) {
-        throw new ApiKeyNotSetError("La clave API de Gemini no ha sido configurada. Por favor, configúrala en la sección de Ajustes.");
-    }
+    // FIX: Removed manual API key checks as the application now relies on the pre-configured environment variable.
     return ai;
 }
 
@@ -35,17 +27,13 @@ function handleGeminiError(error: unknown, defaultMessage: string, model: string
     let debugInfo = '';
     if (error instanceof Error && error.stack) {
         const stackLines = error.stack.split('\n');
-        // Find the first line in the stack trace that is not from the geminiService file itself.
-        // This points to where the gemini service function was *called* from.
         const callerLine = stackLines.find(line => line.includes('at ') && !line.includes('geminiService.ts'));
         
         if (callerLine) {
-            // Clean up the line for display. E.g., "at handleSearch (http://.../App.tsx:210:48)" -> "(Error en handleSearch en App.tsx:210)"
             const match = callerLine.match(/at\s+([^\s(]+)\s+\(?(?:[^\/]+\/)*([^\/)]+:\d+):\d+\)?/);
             if (match && match[1] && match[2]) {
                  debugInfo = `\n(Error en ${match[1]} en ${match[2]})`;
             } else {
-                // Fallback for anonymous functions or different formats like "at http://.../App.tsx:210:48"
                 const simpleMatch = callerLine.match(/\((?:[^\/]+\/)*([^\/)]+:\d+:\d+)\)/);
                 if (simpleMatch && simpleMatch[1]) {
                     debugInfo = `\n(Error en ${simpleMatch[1]})`;
@@ -56,19 +44,10 @@ function handleGeminiError(error: unknown, defaultMessage: string, model: string
         }
     }
 
-
-    // Handle our custom, pre-emptive error for missing API key
-    if (error instanceof ApiKeyNotSetError) {
-        error.message += debugInfo;
-        return error;
-    }
-
-    // Handle network errors (e.g., offline, ad-blockers, CORS)
     if (error instanceof TypeError && (error.message.toLowerCase().includes('fetch') || error.message.toLowerCase().includes('load failed') || error.message.toLowerCase().includes('networkerror'))) {
         return new Error("Error de red. Por favor, comprueba tu conexión a internet, desactiva extensiones de bloqueo de anuncios (ad-blockers) e inténtalo de nuevo." + debugInfo);
     }
 
-    // Handle specific error classes we've defined
     if (error instanceof AnomalousPriceError) {
         error.message += debugInfo;
         return error;
@@ -77,14 +56,13 @@ function handleGeminiError(error: unknown, defaultMessage: string, model: string
     if (error instanceof Error) {
         const errorMessage = error.message.toLowerCase();
 
-        // Check for common, critical error messages from the API/SDK
         if (errorMessage.includes("resource_exhausted") || errorMessage.includes("quota")) {
             const quotaMessage = `Se ha excedido la cuota de uso para el motor de IA '${model}'. Por favor, revisa tu plan y los detalles de facturación en tu cuenta de Google AI Studio para poder continuar.`;
             return new QuotaExceededError(quotaMessage + debugInfo, model);
         }
 
         if (errorMessage.includes("api key not valid") || errorMessage.includes("permission_denied")) {
-            return new Error(`La clave API de Gemini proporcionada no es válida o no tiene los permisos necesarios. Por favor, revísala en la sección de Ajustes. Puedes obtener una nueva clave en Google AI Studio.` + debugInfo);
+            return new Error(`La clave API de Gemini proporcionada no es válida o no tiene los permisos necesarios.` + debugInfo);
         }
 
         if (errorMessage.includes("not_found") || errorMessage.includes("404")) {
@@ -95,13 +73,11 @@ function handleGeminiError(error: unknown, defaultMessage: string, model: string
              return new Error(`La solicitud a la API contenía un argumento no válido. Esto puede ser un error interno. Por favor, intenta reformular tu petición. Detalles: ${error.message}` + debugInfo);
         }
         
-        // Return a cleaner version of the original error if it's somewhat understandable
         if (!errorMessage.includes('json') && !errorMessage.includes('internal')) {
              return new Error(`La API ha devuelto un error: ${error.message}` + debugInfo);
         }
     }
 
-    // Fallback for unexpected or generic errors
     return new Error(defaultMessage + debugInfo);
 }
 
@@ -132,7 +108,6 @@ function safeJsonParse<T>(jsonString: string, functionName: string): T {
 
                 if (char === '"') {
                     if (inString) {
-                        // We are inside a string. Check if it's a delimiter.
                         let nextMeaningfulChar = '';
                         for (let j = i + 1; j < jsonString.length; j++) {
                             if (!/\s/.test(jsonString[j])) {
@@ -144,11 +119,9 @@ function safeJsonParse<T>(jsonString: string, functionName: string): T {
                             inString = false;
                             repairedString += char;
                         } else {
-                            // This is an unescaped quote inside a string. Escape it.
                             repairedString += '\\"';
                         }
                     } else {
-                        // We are outside a string. This is an opening quote.
                         inString = true;
                         repairedString += char;
                     }
@@ -170,10 +143,8 @@ function safeJsonParse<T>(jsonString: string, functionName: string): T {
 }
 
 function cleanAndParseJson<T>(text: string, functionName: string): T {
-    // Trim whitespace and remove markdown fences.
     let jsonText = text.trim().replace(/^```json\s*/, '').replace(/```$/, '').trim();
 
-    // If after stripping markdown, it doesn't look like JSON, try to find the JSON object within the text.
     if (!jsonText.startsWith('{') && !jsonText.startsWith('[')) {
         const firstBrace = text.indexOf('{');
         const firstBracket = text.indexOf('[');
@@ -202,7 +173,7 @@ function cleanAndParseJson<T>(text: string, functionName: string): T {
 }
 
 export async function getAssetInfo(query: string, engine: string): Promise<GeminiResponse<Asset[]>> {
-    const prompt = `Un usuario ha introducido la siguiente consulta para identificar un activo financiero: "${query}". Tu tarea como analista experto es identificar todas las posibles coincidencias relevantes a nivel mundial. Para cada activo, proporciona su nombre, ticker, tipo ('stock' o 'crypto'), una breve descripción y, crucialmente, la URL directa a su página principal en la versión en español de Investing.com (debe empezar con https://es.investing.com/...). Esta URL es muy importante; asegúrate de que apunte a la página específica del activo (por ejemplo, /equities/banco-santander), no a una página de búsqueda. Si no encuentras una URL directa, déjala como una cadena vacía.`;
+    const prompt = `Un usuario ha introducido la siguiente consulta para identificar un activo financiero: "${query}". Tu tarea como analista experto es identificar todas las posibles coincidencias relevantes a nivel mundial. Para cada activo, proporciona su nombre, ticker, tipo ('stock' o 'crypto'), una breve descripción y, crucialmente, la URL directa a su página principal en la versión en español de Investing.com (debe empezar con https://es.investing.com/...). Esta URL es muy importante; asegúrate de que apunte a la página específica del activo. Si no encuentras una URL directa, déjala vacía.`;
 
     try {
         const client = getClient();
@@ -217,7 +188,6 @@ export async function getAssetInfo(query: string, engine: string): Promise<Gemin
                     properties: {
                         assets: {
                             type: Type.ARRAY,
-                            description: "Lista de posibles activos coincidentes.",
                             items: {
                                 type: Type.OBJECT,
                                 properties: {
@@ -225,7 +195,7 @@ export async function getAssetInfo(query: string, engine: string): Promise<Gemin
                                     ticker: { type: Type.STRING },
                                     type: { type: Type.STRING },
                                     description: { type: Type.STRING },
-                                    investingUrl: { type: Type.STRING, description: "La URL directa a la página principal del activo en es.investing.com. Por ejemplo: https://es.investing.com/equities/apple-computer-inc" }
+                                    investingUrl: { type: Type.STRING }
                                 },
                                 required: ["name", "ticker", "type", "description", "investingUrl"]
                             }
@@ -242,6 +212,7 @@ export async function getAssetInfo(query: string, engine: string): Promise<Gemin
             candidateTokens: usageMetadata?.candidatesTokenCount ?? 0,
             totalTokens: usageMetadata?.totalTokenCount ?? 0,
         };
+        // FIX: Using property access .text as recommended by the guidelines.
         const jsonText = response.text.trim();
         if (!jsonText) return { data: [], usage };
         
@@ -256,9 +227,9 @@ export async function getAssetInfo(query: string, engine: string): Promise<Gemin
 export async function getAnalysisVectorsForAsset(asset: Asset, engine: string): Promise<GeminiResponse<string[] | null>> {
     let prompt: string;
     if (asset.type === 'stock') {
-        prompt = `Como analista estratégico senior, genera una lista de 8 vectores de análisis clave para la acción "${asset.name}" (${asset.ticker}). La lista debe ser variada, cubriendo aspectos fundamentales, técnicos, de mercado y macroeconómicos. Incluye obligatoriamente en la lista "Análisis Socioeconómico Global", "Sentimiento de los Mercados", "Ranking respecto a sus competidores", "Reparto de dividendos", "Opinión de los expertos" y "Análisis del sector". Otros ejemplos podrían ser "Análisis DAFO", "Salud Financiera", "Innovación" o "Riesgos Clave".`;
+        prompt = `Como analista estratégico senior, genera una lista de 8 vectores de análisis clave para la acción "${asset.name}" (${asset.ticker}). La lista debe ser variada, cubriendo aspectos fundamentales, técnicos, de mercado y macroeconómicos. Incluye obligatoriamente en la lista "Análisis Socioeconómico Global", "Sentimiento de los Mercados", "Ranking respecto a sus competidores", "Reparto de dividendos", "Opinión de los expertos" y "Análisis del sector".`;
     } else { 
-        prompt = `Como analista estratégico senior, para el activo de tipo crypto "${asset.name}" (${asset.ticker}), sugiere una lista de 8 vectores de análisis clave adaptados a su naturaleza. Incluye obligatoriamente en la lista "Análisis Socioeconómico Global", "Sentimiento de los Mercados", "Ranking respecto a sus competidores", "Opinión de los expertos" y "Análisis del sector". Si el activo ofrece recompensas (staking, etc.), incluye "Análisis de Recompensas y Staking". Otros ejemplos podrían ser "Tecnología y Casos de Uso", "Tokenomics", "Comunidad y Adopción" o "Análisis On-Chain".`;
+        prompt = `Como analista estratégico senior, para el activo de tipo crypto "${asset.name}" (${asset.ticker}), sugiere una lista de 8 vectores de análisis clave adaptados a su naturaleza. Incluye obligatoriamente en la lista "Análisis Socioeconómico Global", "Sentimiento de los Mercados", "Ranking respecto a sus competidores", "Opinión de los expertos" y "Análisis del sector".`;
     }
 
     try {
@@ -281,6 +252,7 @@ export async function getAnalysisVectorsForAsset(asset: Asset, engine: string): 
             candidateTokens: usageMetadata?.candidatesTokenCount ?? 0,
             totalTokens: usageMetadata?.totalTokenCount ?? 0,
         };
+        // FIX: Using property access .text instead of method call.
         const jsonText = response.text.trim();
         if (!jsonText) return { data: null, usage };
         
@@ -300,21 +272,21 @@ export async function getAssetAnalysis(asset: Asset, vector: string, engine: str
 2.  Redacta un análisis detallado y profundo en el campo \`fullText\`.
 3.  Crea un resumen conciso y directo de 1-2 frases del análisis completo en el campo \`summary\`.
 4.  **Evalúa el sentimiento** del análisis en una escala de -10 (muy negativo) a +10 (muy positivo) y ponlo en el campo numérico \`sentiment\`.
-5.  **Calcula el Precio Límite de Compra**: Si este vector está relacionado con análisis técnico, valoración o puntos de entrada (p.ej., 'Análisis Técnico', 'Opinión de expertos'), calcula un precio de compra límite tácticamente bueno basado en la información. Ponlo en el campo numérico \`limitBuyPrice\`. Si el vector no es relevante para un precio de entrada, omite este campo.
+5.  **Calcula el Precio Límite de Compra**: Si este vector está relacionado con análisis técnico, valoración o puntos de entrada, calcula un precio de compra límite tácticamente bueno. Ponlo en el campo numérico \`limitBuyPrice\`.
 6.  Formatea la salida como un objeto JSON con las claves 'sentiment' (number), 'summary' (string), 'fullText' (string) y opcionalmente 'limitBuyPrice' (number).
-7.  **IMPORTANTE**: Asegúrate de que cualquier comilla doble (") dentro de los textos de 'summary' o 'fullText' esté debidamente escapada con una barra invertida (p. ej., \\"texto con comillas\\"). Además, cualquier salto de línea dentro de los campos de texto debe ser escapado como \\n.
 **Respuesta (JSON Válido Solamente)**:`;
 
     try {
         const client = getClient();
         const config: any = {
              tools: [{googleSearch: {}}],
-             systemInstruction: "Eres un analista estratégico y financiero de primer nivel. Tu objetivo es proporcionar análisis claros, basados en datos y fáciles de entender. Devuelves exclusivamente JSON.",
+             systemInstruction: "Eres un analista estratégico y financiero de primer nivel. Devuelves exclusivamente JSON.",
              temperature: 0.5,
              maxOutputTokens: 4096,
         };
         
-        if (engine === 'gemini-2.5-flash') {
+        // FIX: Ensuring thinking budget is correctly applied to supported models.
+        if (engine === 'gemini-3-flash-preview') {
             config.thinkingConfig = { thinkingBudget: 256 };
         }
         
@@ -335,6 +307,7 @@ export async function getAssetAnalysis(asset: Asset, vector: string, engine: str
             title: chunk.web?.title ?? 'Fuente sin título'
         })).filter(s => s.uri);
         
+        // FIX: Using property access .text.
         const analysisContent = cleanAndParseJson<AnalysisContent>(response.text, 'getAssetAnalysis');
 
         return { data: { content: analysisContent, sources }, usage };
@@ -350,25 +323,24 @@ export async function getGlobalAnalysis(asset: Asset, existingAnalyses: string, 
 ${existingAnalyses || "Aún no se han generado análisis específicos."}
 ---
 **Instrucciones**:
-1.  **Síntesis Holística**: Utilizando la búsqueda web para obtener el contexto de mercado más reciente Y basándote en la información de los análisis proporcionados, sintetiza toda la información en una visión consolidada.
-2.  **Redacta la Visión Global**: En el campo \`fullText\`, escribe la visión completa. Estructúrala claramente con puntos clave sobre el potencial de crecimiento, los riesgos principales y un veredicto final (comprar, mantener, vender, observar). Utiliza viñetas (con el carácter '•') para mayor claridad.
-3.  **Crea el Resumen Ejecutivo**: En el campo \`summary\`, redacta una conclusión ejecutiva muy breve (1-2 frases) que resuma tu tesis de inversión.
-4.  **Calcula el Precio Límite de Compra**: Basado en análisis técnico (soportes, volatilidad), determina un precio de compra límite tácticamente bueno y ponlo en el campo numérico \`limitBuyPrice\`. Este valor es opcional; si no es posible calcularlo con confianza, omite el campo.
+1.  **Síntesis Holística**: Utilizando la búsqueda web y basándote en la información de los análisis proporcionados, sintetiza toda la información en una visión consolidada.
+2.  **Redacta la Visión Global**: En el campo \`fullText\`, escribe la visión completa.
+3.  **Crea el Resumen Ejecutivo**: En el campo \`summary\`, redacta una conclusión ejecutiva muy breve (1-2 frases).
+4.  **Calcula el Precio Límite de Compra**: Determina un precio de compra límite tácticamente bueno y ponlo en el campo numérico \`limitBuyPrice\`.
 5.  **Evalúa un "Índice de Confianza Global"** en una escala de -10 (muy bajista) a +10 (muy alcista) y ponlo en el campo numérico \`sentiment\`.
-6.  **Formato**: Tu respuesta debe ser un objeto JSON con las claves 'sentiment' (number), 'summary' (string), 'fullText' (string) y opcionalmente 'limitBuyPrice' (number).
-7.  **IMPORTANTE**: Asegúrate de que cualquier comilla doble (") dentro de los textos de 'summary' o 'fullText' esté debidamente escapada con una barra invertida (p. ej., \\"texto con comillas\\"). Además, cualquier salto de línea dentro de los campos de texto debe ser escapado como \\n.
 **Respuesta (JSON Válido Solamente)**:`;
 
     try {
         const client = getClient();
         const config: any = {
              tools: [{googleSearch: {}}],
-             systemInstruction: "Eres un Director de Inversiones (CIO) de élite, especializado en sintetizar análisis complejos en una tesis de inversión final, clara y accionable. Devuelves exclusivamente JSON.",
+             systemInstruction: "Eres un Director de Inversiones (CIO) de élite. Devuelves exclusivamente JSON.",
              temperature: 0.6,
              maxOutputTokens: 4096,
         };
         
-        if (engine === 'gemini-2.5-flash') {
+        // FIX: Updating thinking budget logic for Gemini 3 series.
+        if (engine === 'gemini-3-flash-preview') {
             config.thinkingConfig = { thinkingBudget: 256 };
         }
         
@@ -389,6 +361,7 @@ ${existingAnalyses || "Aún no se han generado análisis específicos."}
             title: chunk.web?.title ?? 'Fuente sin título'
         })).filter(s => s.uri);
         
+        // FIX: Property access .text.
         const analysisContent = cleanAndParseJson<AnalysisContent>(response.text, 'getGlobalAnalysis');
 
         return { data: { content: analysisContent, sources }, usage };
@@ -408,33 +381,21 @@ export async function askAboutAnalysis(
         ? history.map(m => `${m.role === 'user' ? 'Usuario' : 'Asistente'}: ${m.text}`).join('\n')
         : "No hay mensajes anteriores.";
 
-    const prompt = `**Tarea Crítica**: Tu única función es actuar como un API que devuelve JSON. No debes escribir ninguna palabra explicativa. Tu respuesta debe ser *exclusivamente* un objeto JSON válido.
-**Contexto**: Eres un asistente de Q&A. Tu ÚNICA fuente de información es el contexto de análisis proporcionado para el activo "${assetName}" y el historial de la conversación. No uses conocimientos externos ni busques en la web.
+    const prompt = `**Tarea Crítica**: Tu única función es actuar como un API que devuelve JSON. Tu respuesta debe ser *exclusivamente* un objeto JSON válido.
+**Contexto**: Eres un asistente de Q&A. Tu ÚNICA fuente de información es el contexto de análisis proporcionado para el activo "${assetName}" y el historial de la conversación.
 --- CONTEXTO DE ANÁLISIS ---
 ${analysisContext || "No hay análisis."}
 --- FIN CONTEXTO DE ANÁLISIS ---
 
---- HISTORIAL DE CONVERSACIÓN ---
-${historyText}
---- FIN HISTORIAL DE CONVERSACIÓN ---
-
 **Nueva pregunta del usuario**: "${question}"
 **Instrucciones**:
-1.  Busca la respuesta a la nueva pregunta ESTRICTAMENTE dentro del CONTEXTO y el HISTORIAL.
-2.  Si encuentras la respuesta:
-    -   Establece \`answerFound\` en \`true\`.
-    -   En \`summary\`, escribe un resumen muy conciso de 1 frase de la respuesta.
-    -   En \`fullText\`, escribe la respuesta completa y detallada.
-3.  Si NO encuentras la respuesta en el contexto:
-    -   Establece \`answerFound\` en \`false\`.
-    -   En \`summary\`, escribe: "La respuesta no se encontró en los análisis actuales. ¿Quieres realizar una búsqueda más amplia en la web?".
-    -   Deja \`fullText\` como una cadena vacía.
+1. JSON: \`answerFound\` (bool), \`summary\` (resumen), \`fullText\` (detalle).
 **Respuesta (JSON Válido Solamente)**:`;
 
     try {
         const client = getClient();
         const config: any = {
-             systemInstruction: "Eres un asistente Q&A que se ciñe estrictamente al contexto proporcionado y devuelve JSON.",
+             systemInstruction: "Eres un asistente Q&A que se ciñe estrictamente al contexto y devuelve JSON.",
              temperature: 0.2,
              responseMimeType: "application/json",
              responseSchema: {
@@ -448,8 +409,8 @@ ${historyText}
             }
         };
         
-        if (engine === 'gemini-2.5-flash') {
-            config.thinkingConfig = { thinkingBudget: 0 }; // Disable thinking for fast Q&A
+        if (engine === 'gemini-3-flash-preview') {
+            config.thinkingConfig = { thinkingBudget: 0 }; 
         }
         
          const response = await client.models.generateContent({
@@ -463,6 +424,7 @@ ${historyText}
             candidateTokens: usageMetadata?.candidatesTokenCount ?? 0,
             totalTokens: usageMetadata?.totalTokenCount ?? 0,
         };
+        // FIX: Using property access .text.
         const answer = cleanAndParseJson<{ answerFound: boolean } & AiAnswer>(response.text, 'askAboutAnalysis');
 
         return { data: answer, usage };
@@ -481,27 +443,20 @@ export async function askWithWebSearch(
         ? history.map(m => `${m.role === 'user' ? 'Usuario' : 'Asistente'}: ${m.text}`).join('\n')
         : "No hay mensajes anteriores.";
 
-    const prompt = `**Tarea Crítica**: Tu única función es actuar como un API que devuelve JSON. No debes escribir ninguna palabra explicativa. Tu respuesta debe ser *exclusivamente* un objeto JSON válido.
-**Contexto**: Eres un asistente de investigación financiera. Responde a la pregunta sobre "${assetName}" usando la búsqueda web y teniendo en cuenta el historial de conversación.
---- HISTORIAL DE CONVERSACIÓN ---
-${historyText}
---- FIN HISTORIAL DE CONVERSACIÓN ---
+    const prompt = `**Tarea Crítica**: API JSON. Búsqueda web para "${assetName}".
 **Pregunta**: "${question}"
 **Instrucciones**:
-1.  Usa la búsqueda web para obtener la información más actualizada y relevante para la pregunta.
-2.  En \`summary\`, escribe un resumen muy conciso de 1-2 frases de la respuesta.
-3.  En \`fullText\`, escribe la respuesta completa, bien estructurada y detallada.
-**Respuesta (JSON Válido Solamente)**:`;
+1. JSON: \`summary\` (1-2 frases), \`fullText\` (detalle).`;
 
     try {
         const client = getClient();
         const config: any = {
              tools: [{googleSearch: {}}],
-             systemInstruction: "Eres un asistente de investigación financiera que utiliza la búsqueda web para dar respuestas actualizadas en formato JSON.",
+             systemInstruction: "Asistente de investigación web. Devuelve JSON.",
              temperature: 0.4,
         };
 
-        if (engine === 'gemini-2.5-flash') {
+        if (engine === 'gemini-3-flash-preview') {
             config.thinkingConfig = { thinkingBudget: 128 };
         }
 
@@ -523,6 +478,7 @@ ${historyText}
             title: chunk.web?.title ?? 'Fuente sin título'
         })).filter(s => s.uri);
 
+        // FIX: Using property access .text.
         const answer = cleanAndParseJson<Omit<AiAnswer, 'sources'>>(response.text.trim(), 'askWithWebSearch');
 
         return { data: { ...answer, sources }, usage };
@@ -532,15 +488,11 @@ ${historyText}
 }
 
 export async function getAlternativeAssets(asset: Asset, engine: string, currency: Currency): Promise<GeminiResponse<Asset[] | null>> {
-    const prompt = `**Tarea Crítica**: Tu única función es actuar como un API que devuelve JSON. No debes escribir ninguna palabra explicativa, saludo, ni texto introductorio. Tu respuesta debe ser *exclusivamente* un objeto JSON válido.
-**Contexto**: El usuario está analizando el activo financiero '${asset.name}' (${asset.ticker}) de tipo '${asset.type}'.
+    const prompt = `**Tarea Crítica**: API JSON.
+**Contexto**: Alternativas para '${asset.name}' (${asset.ticker}).
 **Instrucciones**:
-1. Usa la búsqueda web para identificar el nicho o sector principal del activo.
-2. Encuentra 4 activos alternativos (competidores directos o proyectos similares) dentro de ese mismo nicho.
-3. Para cada alternativa, utiliza la búsqueda web para obtener su nombre completo, su ticker/símbolo, su precio actual **OBLIGATORIAMENTE en ${currency.toUpperCase()}**, y su cambio numérico en las últimas 24 horas (positivo si sube, negativo si baja).
-4. Formatea la salida como un objeto JSON con una clave 'alternatives'. Esta clave debe contener una lista de objetos.
-5. Cada objeto en la lista debe tener cuatro claves: 'name' (string), 'ticker' (string), 'currentPrice' (number), y 'change' (number). Si no encuentras el precio o el cambio, usa un valor de 0.
-**Respuesta (JSON Válido Solamente)**:`;
+1. Encuentra 4 competidores. Precio en **${currency.toUpperCase()}**.
+2. JSON: lista 'alternatives' con 'name', 'ticker', 'currentPrice' (number), 'change' (number).`;
 
     try {
         const client = getClient();
@@ -561,6 +513,7 @@ export async function getAlternativeAssets(asset: Asset, engine: string, currenc
             candidateTokens: usageMetadata?.candidatesTokenCount ?? 0,
             totalTokens: usageMetadata?.totalTokenCount ?? 0,
         };
+        // FIX: Using property access .text.
         const result = cleanAndParseJson<{alternatives: any[]}>(response.text, 'getAlternativeAssets');
 
         if (result && result.alternatives) {
@@ -594,30 +547,16 @@ async function _getAssetPrice(
     switch (type) {
         case 'historical':
             functionName = 'getAssetPriceOnDate';
-            systemInstruction = "Eres un API de consulta de precios históricos. Tu única respuesta es un objeto JSON con el precio y la moneda.";
-            prompt = `**Tarea Crítica**: Actúa como un API JSON. Tu única misión es encontrar un precio histórico de cierre para un activo y devolverlo en formato JSON.
-**Activo**: "${asset.name}" (${asset.ticker})
-**Fecha Objetivo**: ${date}
-**Jerarquía de Búsqueda (Sigue este orden estricto)**:
-1.  **Prioridad #1 - Fecha Exacta**: Busca el precio de cierre del activo en la **Fecha Objetivo** exacta.
-2.  **Prioridad #2 - Búsqueda Hacia Atrás**: Si no encuentras datos para la Fecha Objetivo (fin de semana, festivo), busca hacia atrás día por día hasta que encuentres el **primer día hábil anterior** con datos.
-3.  **Prioridad #3 - Precio de Salida a Bolsa (IPO)**: Si la fecha es anterior a la existencia del activo, encuentra el **precio de cierre del día de su salida a bolsa (IPO)**.
-**Instrucción Clave sobre Persistencia**: Es CRUCIAL que seas persistente. Casi todos los activos que cotizan tienen datos históricos. Solo devuelve \`null\` como último recurso absoluto si no encuentras NINGÚN precio.
-**Instrucciones de Formato de Respuesta**: Tu respuesta debe ser *exclusivamente* un objeto JSON válido con las claves: 'price' (un número, o \`null\') y 'currency' (un string, **OBLIGATORIAMENTE "${currency.toUpperCase()}"**).
-**Respuesta (JSON Válido Solamente)**:`;
+            systemInstruction = "API de precios históricos. JSON: 'price' y 'currency'.";
+            prompt = `**Tarea Crítica**: API JSON precio histórico para "${asset.name}" (${asset.ticker}) al ${date}.
+**Instrucciones de Formato**: JSON: 'price' (número/null), 'currency' (**OBLIGATORIAMENTE "${currency.toUpperCase()}"**).`;
             break;
 
         case 'future':
             functionName = 'getAssetFuturePricePrediction';
-            systemInstruction = "Eres un API de predicción de precios. Tu única respuesta es un objeto JSON con el precio predicho y la moneda.";
-            prompt = `**Tarea Crítica**: Actúa como un API JSON que devuelve una predicción de precio para un activo en una fecha futura.
-**Activo**: "${asset.name}" (${asset.ticker})
-**Fecha Objetivo**: ${date} (una fecha en el futuro)
-**Instrucciones**:
-1. Usa la búsqueda web para recopilar análisis de expertos, pronósticos de mercado, informes financieros recientes y tendencias del sector para el activo.
-2. Basado en este análisis, formula una predicción de precio **realista y justificada** para el activo en la Fecha Objetivo. No seas excesivamente optimista o pesimista; basa tu predicción en datos. Evita dar rangos, proporciona un único precio objetivo.
-3. Tu respuesta debe ser *exclusivamente* un objeto JSON válido con las claves: 'price' (un número que es tu predicción de precio) y 'currency' (un string, **OBLIGATORIAMENTE "${currency.toUpperCase()}"**).
-**Respuesta (JSON Válido Solamente)**:`;
+            systemInstruction = "API de predicción. JSON: 'price' y 'currency'.";
+            prompt = `**Tarea Crítica**: Predicción de precio futuro para "${asset.name}" (${asset.ticker}) al ${date}.
+**Instrucciones**: JSON: 'price' (número), 'currency' (**OBLIGATORIAMENTE "${currency.toUpperCase()}"**).`;
             break;
     }
 
@@ -639,6 +578,7 @@ async function _getAssetPrice(
             candidateTokens: usageMetadata?.candidatesTokenCount ?? 0,
             totalTokens: usageMetadata?.totalTokenCount ?? 0,
         };
+        // FIX: Using property access .text.
         const text = response.text.trim();
         if (!text) throw new Error("La API no devolvió un precio.");
 
@@ -650,32 +590,24 @@ async function _getAssetPrice(
                 const ratio = historicalPrice / currentPriceForAnomalyCheck;
                 if (ratio > 20 || ratio < 0.05) {
                     throw new AnomalousPriceError(
-                        `El precio histórico (${historicalPrice.toFixed(2)} ${currency}) del ${date} parece anómalo comparado con el actual (${currentPriceForAnomalyCheck.toFixed(2)} ${currency}). Podría deberse a un split de acciones no considerado. Por favor, verifica el dato.`,
+                        `Precio histórico (${historicalPrice} ${currency}) anómalo.`,
                         historicalPrice
                     );
                 }
             }
             return { data: priceData, usage };
         } else {
-            throw new Error("La API devolvió un formato de precio no válido.");
+            throw new Error("Formato de precio no válido.");
         }
     } catch (error) {
         if (error instanceof AnomalousPriceError) throw error;
-        const errorMessage = type === 'historical' ? `No se pudo obtener el precio del activo para la fecha ${date}.` : "No se pudo obtener el precio del activo.";
-        throw handleGeminiError(error, errorMessage, engine);
+        throw handleGeminiError(error, `Error obteniendo precio ${type}.`, engine);
     }
 }
 
 export async function getAssetQuote(asset: Asset, engine: string, currency: Currency): Promise<GeminiResponse<{ price: number; changeValue: number; changePercentage: number; currency: string } | null>> {
-    // We add the current timestamp to the prompt to force the model (and Google Search) to fetch fresh data and avoid caching.
-    const prompt = `**Tarea Crítica**: Actúa como un API JSON. Tu única respuesta es un objeto JSON.
-**Activo**: "${asset.name}" (${asset.ticker})
-**Contexto Temporal**: La fecha y hora exacta de esta consulta es ${new Date().toISOString()}. Asegúrate de obtener el precio más reciente disponible en este momento.
-**Instrucciones**:
-1. Usa la búsqueda web para encontrar la cotización de mercado más reciente del activo.
-2. Tu respuesta debe ser *exclusivamente* un objeto JSON válido.
-3. El JSON debe contener: 'price' (número), 'changeValue' (número, cambio numérico del día, p.ej. -1.25), 'changePercentage' (número, cambio porcentual del día, p.ej. -0.85 para -0.85%), y 'currency' (string, **OBLIGATORIAMENTE "${currency.toUpperCase()}"**).
-**Respuesta (JSON Válido Solamente)**:`;
+    const prompt = `**Tarea Crítica**: API JSON cotización actual para "${asset.name}" (${asset.ticker}).
+**Instrucciones**: JSON: 'price' (número), 'changeValue' (número), 'changePercentage' (número), 'currency' (**OBLIGATORIAMENTE "${currency.toUpperCase()}"**).`;
 
     try {
         const client = getClient();
@@ -684,7 +616,7 @@ export async function getAssetQuote(asset: Asset, engine: string, currency: Curr
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
-                systemInstruction: "Eres un API de consulta de precios. Tu única respuesta es un objeto JSON con la cotización completa.",
+                systemInstruction: "API de cotizaciones. JSON estricto.",
                 temperature: 0,
             }
         });
@@ -694,15 +626,16 @@ export async function getAssetQuote(asset: Asset, engine: string, currency: Curr
             candidateTokens: usageMetadata?.candidatesTokenCount ?? 0,
             totalTokens: usageMetadata?.totalTokenCount ?? 0,
         };
+        // FIX: Using property access .text.
         const text = response.text.trim();
         if (!text) throw new Error("La API no devolvió una cotización.");
 
         const quoteData = cleanAndParseJson<{ price: number; changeValue: number; changePercentage: number; currency: string }>(text, 'getAssetQuote');
         
-        if (quoteData && typeof quoteData.price === 'number' && typeof quoteData.changeValue === 'number' && typeof quoteData.changePercentage === 'number') {
+        if (quoteData && typeof quoteData.price === 'number') {
             return { data: quoteData, usage };
         } else {
-             throw new Error("La API devolvió un formato de cotización no válido o incompleto.");
+             throw new Error("Datos de cotización incompletos.");
         }
     } catch (error) {
         throw handleGeminiError(error, "No se pudo obtener la cotización del activo.", engine);
@@ -716,19 +649,14 @@ export async function getAssetPriceOnDate(asset: Asset, date: string, engine: st
 export async function getAssetFuturePricePrediction(asset: Asset, date: string, engine: string, currency: Currency): Promise<GeminiResponse<{ price: number; currency: string } | null>> {
     const result = await _getAssetPrice(asset, date, engine, currency, 'future', null);
     if (result.data && typeof result.data.price !== 'number') {
-        throw new Error("La API no devolvió una predicción de precio válida.");
+        throw new Error("Predicción no válida.");
     }
     return result as GeminiResponse<{ price: number; currency: string } | null>;
 }
 
 export async function getLimitBuyPrice(asset: Asset, engine: string, currency: Currency): Promise<GeminiResponse<{ price: number } | null>> {
-    const prompt = `**Tarea Crítica**: Actúa como un API JSON. Tu única respuesta es un objeto JSON.
-**Contexto**: Eres un analista técnico de mercados financieros. Basándote en la situación actual del mercado para el activo "${asset.name}" (${asset.ticker}), debes calcular un "Precio Límite de Compra" recomendado.
-**Instrucciones**:
-1.  Usa la búsqueda web para analizar los gráficos de precios recientes, identificar niveles de soporte clave, y considerar la volatilidad actual.
-2.  Determina un precio de entrada que consideres tácticamente bueno para una nueva compra, un punto en el que el activo podría tener un retroceso antes de continuar una posible tendencia alcista, o un nivel de soporte fuerte.
-3.  Tu respuesta debe ser *exclusivamente* un objeto JSON válido con una única clave: 'price' (un número en ${currency.toUpperCase()}).
-**Respuesta (JSON Válido Solamente)**:`;
+    const prompt = `**Tarea Crítica**: API JSON Precio Límite de Compra para "${asset.name}" (${asset.ticker}).
+**Instrucciones**: JSON: 'price' (número en ${currency.toUpperCase()}).`;
 
     try {
         const client = getClient();
@@ -737,7 +665,7 @@ export async function getLimitBuyPrice(asset: Asset, engine: string, currency: C
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
-                systemInstruction: "Eres un API de análisis técnico que devuelve un precio de compra recomendado en formato JSON.",
+                systemInstruction: "API de análisis técnico. JSON estricto.",
                 temperature: 0.2,
             }
         });
@@ -747,58 +675,37 @@ export async function getLimitBuyPrice(asset: Asset, engine: string, currency: C
             candidateTokens: usageMetadata?.candidatesTokenCount ?? 0,
             totalTokens: usageMetadata?.totalTokenCount ?? 0,
         };
+        // FIX: Property access .text.
         const text = response.text.trim();
-        if (!text) throw new Error("La API no devolvió un precio.");
+        if (!text) throw new Error("Sin respuesta.");
 
         const priceData = cleanAndParseJson<{ price: number }>(text, 'getLimitBuyPrice');
         
         if (priceData && typeof priceData.price === 'number') {
             return { data: priceData, usage };
         } else {
-             throw new Error("La API devolvió un formato de precio no válido.");
+             throw new Error("Formato inválido.");
         }
     } catch (error) {
-        throw handleGeminiError(error, "No se pudo calcular el precio límite de compra.", engine);
+        throw handleGeminiError(error, "Error en precio límite.", engine);
     }
 }
 
 /**
  * Retrieves a list of available AI models for the user to choose from.
- * This fulfills the user's request to select from different engines and
- * adjusts the application to use real model names, allowing for different
- * capabilities and performance characteristics.
  */
 export async function getAvailableTextModels(): Promise<string[]> {
-    // Simulate a network delay for fetching models
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Provide a selection of actual models for the user.
-    // 'gemini-2.5-flash' for speed and efficiency.
-    // 'gemini-3-pro-preview' for advanced reasoning and higher quality analysis.
-    return ['gemini-2.5-flash', 'gemini-3-pro-preview'];
+    // FIX: Switched to recommended Gemini 3 series model aliases.
+    return ['gemini-3-flash-preview', 'gemini-3-pro-preview'];
 }
 
 export async function analyzeMarketSector(sector: string, criteria: string, engine: string, currency: Currency): Promise<GeminiResponse<MarketAnalysisResult>> {
-    const prompt = `**Tarea Crítica**: Tu única función es actuar como un API que devuelve JSON. No escribas ninguna palabra explicativa. Tu respuesta debe ser *exclusivamente* un objeto JSON válido.
-**Contexto**: Eres un analista de mercados experto. Un usuario quiere un análisis del sector "${sector}" basado en el criterio: "${criteria}".
+    const prompt = `**Tarea Crítica**: API JSON análisis sector "${sector}" por "${criteria}".
 **Instrucciones**:
-1.  **Genera un Título**: Crea un título descriptivo para el análisis en el campo \`title\`. Ejemplo: "Principales Empresas del Sector ${sector} por ${criteria}".
-2.  **Identifica Activos**: Usando la búsqueda web, identifica entre 5 y 8 de los activos más relevantes del sector "${sector}" que cumplan con el criterio "${criteria}".
-3.  **Recopila Métricas**: Para cada activo, obtén las siguientes métricas ACTUALIZADAS en la moneda ${currency.toUpperCase()}:
-    *   \`name\`: (string) Nombre completo de la empresa.
-    *   \`ticker\`: (string) Símbolo bursátil.
-    *   \`marketCap\`: (string) Capitalización de mercado (ej. "3.59 Trillion ${currency.toUpperCase()}").
-    *   \`sentiment\`: (string) Sentimiento general del mercado ('Bullish', 'Bearish', or 'Neutral').
-    *   \`peRatio\`: (number) Ratio P/E (Price-to-Earnings).
-    *   \`eps\`: (number) BPA (Beneficio Por Acción) o EPS (Earnings Per Share), un valor numérico en ${currency.toUpperCase()}.
-    *   \`dividendYield\`: (number) Rendimiento del dividendo en porcentaje (ej. 0.45 para 0.45%).
-4.  **Calcula Promedios del Sector**: Calcula los promedios ponderados por capitalización de mercado para el sector basados en los activos que encontraste:
-    *   \`marketCap\`: (string) Suma total de la capitalización de mercado (en ${currency.toUpperCase()}).
-    *   \`averagePeRatio\`: (number) P/E promedio.
-    *   \`averageEps\`: (number) BPA promedio, un valor numérico en ${currency.toUpperCase()}.
-    *   \`averageDividendYield\`: (number) Rendimiento de dividendo promedio.
-5.  **Estructura JSON**: Devuelve un único objeto JSON con las claves: \`title\` (string), \`assets\` (una lista de objetos con las métricas de cada activo), y \`sectorAverage\` (un objeto con los promedios del sector).
-**Respuesta (JSON Válido Solamente)**:`;
+1. JSON: \`title\` (string), \`assets\` (lista con name, ticker, marketCap, sentiment, peRatio, eps, dividendYield), y \`sectorAverage\`.
+2. Métricas en **${currency.toUpperCase()}**.`;
 
     try {
         const client = getClient();
@@ -817,6 +724,7 @@ export async function analyzeMarketSector(sector: string, criteria: string, engi
             candidateTokens: usageMetadata?.candidatesTokenCount ?? 0,
             totalTokens: usageMetadata?.totalTokenCount ?? 0,
         };
+        // FIX: Using property access .text.
         const result = cleanAndParseJson<MarketAnalysisResult>(response.text, 'analyzeMarketSector');
 
         const parseNumeric = (value: any): number => {

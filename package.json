@@ -16,7 +16,8 @@
     "html2canvas": "1.4.1",
     "docx": "8.5.0",
     "uuid": "10.0.0",
-    "recharts": "2.12.7"
+    "recharts": "2.12.7",
+    "lucide-react": "0.344.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

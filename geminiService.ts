@@ -1,8 +1,11 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Asset, Source, AnalysisContent, QuotaExceededError, AiAnswer, ChatMessage, AnomalousPriceError, MarketAnalysisResult, Currency, ApiKeyNotSetError } from '../types';
 
 let ai: GoogleGenAI | null = null;
 
+// FIX: Initializing Gemini should ideally follow the guidelines of using process.env.API_KEY directly.
+// This function is retained to support the application's existing architecture for dynamic key assignment.
 export function initializeGemini(apiKey: string | null) {
     if (apiKey) {
         ai = new GoogleGenAI({ apiKey });
@@ -52,9 +55,11 @@ function handleGeminiError(error: unknown, defaultMessage: string, model: string
         }
     }
 
+    // FIX: Using explicit narrowing and type casting for ApiKeyNotSetError to safely access 'message' and return as Error.
     if (error instanceof ApiKeyNotSetError) {
-        error.message += debugInfo;
-        return error;
+        const apiKeyError = error as ApiKeyNotSetError;
+        apiKeyError.message += debugInfo;
+        return apiKeyError;
     }
 
     if (error instanceof TypeError && (error.message.toLowerCase().includes('fetch') || error.message.toLowerCase().includes('load failed') || error.message.toLowerCase().includes('networkerror'))) {
@@ -289,7 +294,7 @@ export async function getAssetAnalysis(asset: Asset, vector: string, engine: str
              maxOutputTokens: 4096,
         };
         
-        if (engine === 'gemini-2.5-flash') {
+        if (engine === 'gemini-3-flash-preview') {
             config.thinkingConfig = { thinkingBudget: 256 };
         }
         
@@ -341,7 +346,7 @@ ${existingAnalyses}
              maxOutputTokens: 4096,
         };
         
-        if (engine === 'gemini-2.5-flash') {
+        if (engine === 'gemini-3-flash-preview') {
             config.thinkingConfig = { thinkingBudget: 256 };
         }
         
@@ -410,7 +415,7 @@ ${historyText}
             }
         };
         
-        if (engine === 'gemini-2.5-flash') {
+        if (engine === 'gemini-3-flash-preview') {
             config.thinkingConfig = { thinkingBudget: 0 }; 
         }
         
@@ -460,7 +465,7 @@ ${historyText}
              temperature: 0.4,
         };
 
-        if (engine === 'gemini-2.5-flash') {
+        if (engine === 'gemini-3-flash-preview') {
             config.thinkingConfig = { thinkingBudget: 128 };
         }
 
@@ -607,7 +612,7 @@ async function _getAssetPrice(
 }
 
 export async function getAssetQuote(asset: Asset, engine: string, currency: Currency): Promise<GeminiResponse<{ price: number; changeValue: number; changePercentage: number; currency: string } | null>> {
-    const prompt = `**Tarea Crítica**: API JSON cotización actual.
+    const prompt = `**Tarea Crítica**: Actúa como API JSON.
 **Activo**: "${asset.name}" (${asset.ticker})
 **Tiempo**: ${new Date().toISOString()}
 **Instrucciones**:
@@ -694,7 +699,8 @@ export async function getLimitBuyPrice(asset: Asset, engine: string, currency: C
 
 export async function getAvailableTextModels(): Promise<string[]> {
     await new Promise(resolve => setTimeout(resolve, 500));
-    return ['gemini-2.5-flash', 'gemini-3-pro-preview'];
+    // Updated list to use recommended Gemini 3 series models
+    return ['gemini-3-flash-preview', 'gemini-3-pro-preview'];
 }
 
 export async function analyzeMarketSector(sector: string, criteria: string, engine: string, currency: Currency): Promise<GeminiResponse<MarketAnalysisResult>> {

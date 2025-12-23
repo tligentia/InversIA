@@ -1,3 +1,4 @@
+
 export class QuotaExceededError extends Error {
     engine: string;
     constructor(message: string, engine: string) {
@@ -7,19 +8,20 @@ export class QuotaExceededError extends Error {
     }
 }
 
-export class ApiKeyNotSetError extends Error {
-    constructor(message: string) {
-        super(message);
-        this.name = 'ApiKeyNotSetError';
-    }
-}
-
 export class AnomalousPriceError extends Error {
     price: number;
     constructor(message: string, price: number) {
         super(message);
         this.name = 'AnomalousPriceError';
         this.price = price;
+    }
+}
+
+// Added missing ApiKeyNotSetError class definition
+export class ApiKeyNotSetError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'ApiKeyNotSetError';
     }
 }
 

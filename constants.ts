@@ -19,11 +19,14 @@ export const VECTOR_DESCRIPTIONS: Record<string, string> = {
 
 export const TRUSTED_IP_PREFIXES: string[] = ['83.45.', '37.223.', '79.112.85.173'];
 
+// Versión actualizada según solicitud del usuario
+export const APP_VERSION = 'v25.v12D';
+
 // Pricing per 1 Million Tokens in USD
 export const TOKEN_PRICING_USD: Record<string, { input: number; output: number }> = {
-    'gemini-2.5-flash': { input: 0.10, output: 0.40 }, // Updated approx pricing
-    'gemini-3-pro-preview': { input: 3.50, output: 10.50 }, // Updated approx pricing for Pro
-    'default': { input: 0.10, output: 0.40 }, // Fallback for any unknown models
+    'gemini-3-flash-preview': { input: 0.10, output: 0.40 }, 
+    'gemini-3-pro-preview': { input: 3.50, output: 10.50 },
+    'default': { input: 0.10, output: 0.40 }, 
 };
 
 // Approximate conversion rates for display purposes
@@ -32,5 +35,5 @@ export const CONVERSION_RATES: Record<string, number> = {
     EUR: 0.93,
     GBP: 0.79,
     JPY: 157,
-    BTC: 0.00001, // Approximate BTC/USD rate for cost estimation
+    BTC: 0.00001, 
 };
