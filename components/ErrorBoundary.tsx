@@ -1,3 +1,4 @@
+
 import React, { ErrorInfo, ReactNode } from 'react';
 
 interface ErrorBoundaryProps {
@@ -9,8 +10,15 @@ interface State {
   error?: Error;
 }
 
+// FIX: Explicitly implementing props for ErrorBoundary to ensure TS recognition in all environments.
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, State> {
-  state: State = { hasError: false };
+  public override props: ErrorBoundaryProps;
+  
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.props = props;
+    this.state = { hasError: false };
+  }
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };

@@ -1,12 +1,13 @@
+
 import React from 'react';
 import type { HistoryItem, Currency } from '../types';
 import { SentimentBadge } from './SentimentBadge';
 
 const AssetIcon: React.FC<{ type: HistoryItem['type'] }> = ({ type }) => {
     if (type === 'crypto') {
-        return <i className="fa-brands fa-bitcoin text-orange-500" title="Criptomoneda"></i>;
+        return <i className="fa-brands fa-bitcoin text-red-700" title="Criptomoneda"></i>;
     }
-    return <i className="fa-solid fa-building-columns text-blue-600" title="Acción"></i>;
+    return <i className="fa-solid fa-building-columns text-black dark:text-white" title="Acción"></i>;
 };
 
 interface HistoryListProps {
@@ -18,62 +19,44 @@ interface HistoryListProps {
 
 export const HistoryList: React.FC<HistoryListProps> = React.memo(({ groupedHistory, onClearHistory, onSelectHistoryItem, currency }) => {
     return (
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200">Activos Analizados Recientemente</h3>
+        <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gray-400">Terminal de Historial</h3>
                 <button
                     type="button"
                     onClick={onClearHistory}
-                    className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-500 transition-colors duration-150 p-2 rounded-full -mr-2"
-                    title="Borrar historial"
-                    aria-label="Borrar historial de activos analizados"
+                    className="text-gray-300 hover:text-red-700 transition-colors duration-150 p-2 rounded-full"
+                    title="Limpiar Registros"
                 >
-                    <i className="fas fa-trash-can"></i>
+                    <i className="fas fa-trash-can text-sm"></i>
                 </button>
             </div>
-            <div className="space-y-6">
+            <div className="space-y-8">
                 {Object.entries(groupedHistory).map(([groupTitle, items]) => (
                      <div key={groupTitle}>
-                        <h4 className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider pb-2 mb-2 border-b border-slate-200 dark:border-slate-700">{groupTitle}</h4>
-                        <ul className="divide-y divide-slate-100 dark:divide-slate-700">
-                            {/* FIX: Ensure 'items' is an array before calling .map() to prevent type errors. */}
+                        <h4 className="text-[10px] font-black uppercase text-red-700 tracking-widest pb-2 mb-4 border-b border-gray-50 dark:border-neutral-800">{groupTitle}</h4>
+                        <ul className="space-y-2">
                             {(Array.isArray(items) ? items : []).map(item => (
                                 <li key={item.ticker}>
                                     <button
                                         type="button"
                                         onClick={() => onSelectHistoryItem(item)}
-                                        className="w-full py-3 flex flex-wrap justify-between items-center gap-x-4 gap-y-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors duration-150"
-                                        title={`Analizar de nuevo ${item.name}`}
+                                        className="w-full py-4 px-4 flex justify-between items-center bg-gray-50 dark:bg-neutral-800/50 hover:bg-black hover:text-white dark:hover:bg-red-700 transition-all duration-300 rounded-xl group"
                                     >
-                                        <div className="flex items-center gap-3 min-w-0 flex-grow">
+                                        <div className="flex items-center gap-4 min-w-0">
                                             <AssetIcon type={item.type} />
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <p className="font-bold text-slate-900 dark:text-slate-100 truncate" title={item.name}>{item.name}</p>
-
+                                            <div className="text-left">
+                                                <div className="flex items-center gap-3">
+                                                    <p className="font-black uppercase tracking-tight text-sm truncate">{item.name}</p>
                                                     <SentimentBadge score={item.sentiment} />
                                                 </div>
-                                                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                                                <span className="flex-shrink-0">{item.ticker}</span>
-                                                <span className="text-slate-400 dark:text-slate-600" aria-hidden="true">&bull;</span>
-                                                <span className="flex-shrink-0">{item.date}</span>
-                                                </div>
+                                                <p className="text-[9px] font-bold opacity-50 uppercase tracking-widest mt-1">{item.ticker} &bull; {item.date}</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-baseline gap-4 flex-shrink-0">
-                                            <p className="font-semibold text-slate-900 dark:text-slate-100 text-base">{item.lastClose.toLocaleString('es-ES', { style: 'currency', currency: currency })}</p>
-                                            <div className={`flex items-center text-sm font-medium ${typeof item.change === 'number' && item.change >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
-                                                {typeof item.change === 'number' && typeof item.changePercentage === 'number' ? (
-                                                    <>
-                                                        {item.change >= 0 ? 
-                                                            <i className="fas fa-arrow-up mr-1"></i> : 
-                                                            <i className="fas fa-arrow-down mr-1"></i>
-                                                        }
-                                                        <span>{item.change.toFixed(2)} ({item.changePercentage.toFixed(2)}%)</span>
-                                                    </>
-                                                ) : (
-                                                    <span className="text-slate-500">--</span>
-                                                )}
+                                        <div className="text-right">
+                                            <p className="font-black text-sm tracking-tighter">{item.lastClose.toLocaleString('es-ES', { style: 'currency', currency: currency })}</p>
+                                            <div className={`text-[10px] font-bold mt-1 ${item.change >= 0 ? 'text-green-600 group-hover:text-white' : 'text-red-700 group-hover:text-white'}`}>
+                                                {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)} ({item.changePercentage.toFixed(2)}%)
                                             </div>
                                         </div>
                                     </button>

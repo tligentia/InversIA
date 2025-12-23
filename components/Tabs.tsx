@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import type { AnalysisSession } from '../types';
 
@@ -16,7 +15,7 @@ export const Tabs: React.FC<TabsProps> = ({ sessions, activeSessionId, onSelectS
     }
 
     return (
-        <div className="border-b border-slate-200 dark:border-slate-700">
+        <div className="border-b border-gray-200 dark:border-neutral-800">
             <div className="flex items-center space-x-1" role="tablist" aria-label="Activos analizados">
                 {sessions.map(session => (
                     <div
@@ -29,8 +28,8 @@ export const Tabs: React.FC<TabsProps> = ({ sessions, activeSessionId, onSelectS
                         }}
                         className={`flex items-center gap-2 cursor-pointer py-2 px-4 border-b-2 -mb-px
                                     ${activeSessionId === session.id
-                                        ? 'border-slate-800 dark:border-slate-200 text-slate-800 dark:text-slate-200 font-semibold bg-white dark:bg-slate-800'
-                                        : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                                        ? 'border-red-700 text-red-700 font-bold bg-white dark:bg-neutral-900 dark:text-red-500 dark:border-red-500'
+                                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800/50'
                                     }
                                     transition-colors duration-200 rounded-t-md`}
                         role="tab"
@@ -44,7 +43,7 @@ export const Tabs: React.FC<TabsProps> = ({ sessions, activeSessionId, onSelectS
                                 e.stopPropagation();
                                 onCloseSession(session.id);
                             }}
-                            className="w-5 h-5 rounded-full text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center transition-colors"
+                            className="w-5 h-5 rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-neutral-700 hover:text-red-700 dark:hover:text-red-400 flex items-center justify-center transition-colors"
                             aria-label={`Cerrar análisis de ${session.asset.name}`}
                         >
                             <i className="fas fa-times fa-xs"></i>

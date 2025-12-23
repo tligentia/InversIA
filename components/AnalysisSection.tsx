@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import type { AnalysisVector, Currency } from '../types';
 import { formatTextToHtml } from '../utils/formatter';
@@ -32,15 +33,14 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({ vector, onAnal
     };
 
     return (
-        <div className={`bg-slate-50/70 dark:bg-slate-800/50 rounded-lg transition-shadow ${isDisabled ? '' : 'hover:shadow-sm'}`}>
+        <div className={`bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-lg transition-shadow ${isDisabled ? '' : 'hover:shadow-sm'}`}>
             <button
                 type="button"
                 onClick={handleToggle}
-                className={`w-full flex justify-between items-center p-4 text-left transition ${isOpen ? 'rounded-t-lg' : 'rounded-lg'} ${isDisabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-100/50 dark:hover:bg-slate-800/80'}`}
+                className={`w-full flex justify-between items-center p-4 text-left transition ${isOpen ? 'rounded-t-lg' : 'rounded-lg'} ${isDisabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-gray-100 dark:hover:bg-neutral-800'}`}
                 aria-expanded={isOpen}
                 aria-busy={vector.isLoading}
                 disabled={isDisabled}
-                title={isDisabled && isApiBlocked ? "Las funciones de IA están desactivadas por límite de cuota." : vector.title}
             >
                 <div className="flex items-center gap-3 flex-grow min-w-0">
                     <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
@@ -49,19 +49,18 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({ vector, onAnal
                             checked={vector.isIncludedInGlobal ?? true}
                             onChange={onToggleInclusion}
                             disabled={!vector.content}
-                            className="h-5 w-5 rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-slate-900 dark:border-slate-600 dark:checked:bg-red-600"
-                            aria-label={`Incluir ${vector.title} en el análisis global`}
-                            title={vector.content ? "Incluir en Visión Global" : "Analiza este vector para poder incluirlo"}
+                            className="h-5 w-5 rounded border-gray-300 text-red-700 focus:ring-red-700 disabled:opacity-50 dark:bg-neutral-950 dark:border-neutral-700"
+                            aria-label={`Incluir ${vector.title}`}
                         />
                     </div>
-                    <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-200 flex-1 text-left pr-2 truncate">
+                    <h4 className="text-lg font-bold text-black dark:text-white flex-1 text-left pr-2 truncate">
                         {vector.title}
                         {description && !vector.isCustom && (
                             <div className="relative group inline-flex items-center ml-2 align-middle" onClick={e => e.stopPropagation()}>
-                                <i className="fas fa-info-circle text-slate-400 dark:text-slate-500 text-sm cursor-help"></i>
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
+                                <i className="fas fa-info-circle text-gray-400 text-sm cursor-help"></i>
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
                                     {description}
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-slate-800"></div>
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-gray-900"></div>
                                 </div>
                             </div>
                         )}
@@ -75,27 +74,25 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({ vector, onAnal
                                 e.stopPropagation();
                                 onDelete(vector.title);
                             }}
-                            className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-500 transition w-6 h-6 rounded-full flex items-center justify-center -mr-1"
-                            title="Eliminar vector personalizado"
-                            aria-label={`Eliminar el vector ${vector.title}`}
+                            className="text-gray-400 hover:text-red-700 transition w-6 h-6 rounded-full flex items-center justify-center -mr-1"
                         >
                             <i className="fas fa-times fa-sm"></i>
                         </button>
                     )}
                     {vector.content?.limitBuyPrice && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5" title="Precio Límite de Compra Sugerido por la IA">
-                            <i className="fas fa-bullseye text-orange-500"></i>
-                            <span className="font-mono">{vector.content.limitBuyPrice.toLocaleString('es-ES', { style: 'currency', currency: currency })}</span>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1.5" title="Precio Límite">
+                            <i className="fas fa-bullseye text-red-700"></i>
+                            <span className="font-bold">{vector.content.limitBuyPrice.toLocaleString('es-ES', { style: 'currency', currency: currency })}</span>
                         </div>
                     )}
                     {vector.content && !vector.isLoading && <SentimentBadge score={vector.content.sentiment} />}
                     {vector.isLoading && (
-                         <svg className="animate-spin h-5 w-5 text-slate-600 dark:text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                         <svg className="animate-spin h-5 w-5 text-red-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                     )}
-                    <i className={`fas fa-chevron-down transform transition-transform ${isOpen ? 'rotate-180' : ''}`}></i>
+                    <i className={`fas fa-chevron-down text-gray-400 transform transition-transform ${isOpen ? 'rotate-180' : ''}`}></i>
                 </div>
             </button>
             <div
@@ -103,18 +100,16 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({ vector, onAnal
                     isOpen ? 'max-h-[2000px]' : 'max-h-0'
                 }`}
             >
-                <div className="p-4 border-t border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800 rounded-b-lg">
-                    {vector.error && <p className="text-red-600 dark:text-red-500">{vector.error}</p>}
+                <div className="p-4 border-t border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 rounded-b-lg">
+                    {vector.error && <p className="text-red-700">{vector.error}</p>}
                     {vector.content && (
                         <>
                             <div className="flex items-start gap-3">
-                                <p className="prose prose-sm max-w-none text-slate-600 dark:text-slate-400 italic flex-grow">{vector.content.summary}</p>
+                                <p className="prose prose-sm max-w-none text-gray-600 dark:text-gray-400 italic flex-grow">{vector.content.summary}</p>
                                 <button
                                     type="button"
                                     onClick={() => setIsExpanded(!isExpanded)}
-                                    className="flex-shrink-0 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition p-1"
-                                    title={isExpanded ? "Mostrar menos" : "Mostrar más"}
-                                    aria-expanded={isExpanded}
+                                    className="flex-shrink-0 text-gray-400 hover:text-black dark:hover:text-white transition p-1"
                                 >
                                     <i className={`fas ${isExpanded ? 'fa-compress-alt' : 'fa-expand-alt'}`}></i>
                                 </button>
@@ -122,35 +117,27 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({ vector, onAnal
 
                             {isExpanded && (
                                 <div 
-                                    className="prose prose-sm max-w-none text-slate-700 dark:text-slate-300 mt-4 pt-4 border-t border-dashed dark:border-slate-600"
+                                    className="prose prose-sm max-w-none text-gray-800 dark:text-gray-300 mt-4 pt-4 border-t border-dashed border-gray-200 dark:border-neutral-800"
                                     dangerouslySetInnerHTML={{ __html: formatTextToHtml(vector.content.fullText) }}
                                 />
                             )}
                             
                             {vector.sources && vector.sources.length > 0 && (
-                                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-neutral-900">
                                     <button
                                         type="button"
                                         onClick={() => setIsSourcesOpen(!isSourcesOpen)}
-                                        className="w-full flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider hover:text-slate-800 dark:hover:text-slate-200 transition p-2 -m-2 rounded-md hover:bg-slate-100/50 dark:hover:bg-slate-700/50"
-                                        aria-expanded={isSourcesOpen}
+                                        className="w-full flex justify-between items-center text-xs font-black text-gray-400 uppercase tracking-widest hover:text-red-700 transition"
                                     >
-                                        <span>Fuentes Consultadas ({vector.sources.length})</span>
+                                        <span>Fuentes ({vector.sources.length})</span>
                                         <i className={`fas fa-chevron-down transform transition-transform ${isSourcesOpen ? 'rotate-180' : ''}`}></i>
                                     </button>
                                     {isSourcesOpen && (
                                         <ul className="space-y-1 mt-2">
                                             {vector.sources.map((source, index) => (
                                                 <li key={index}>
-                                                    <a 
-                                                        href={source.uri} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer" 
-                                                        className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:underline truncate block"
-                                                        title={source.title}
-                                                    >
-                                                       <i className="fas fa-link fa-xs mr-2"></i>
-                                                        {source.title}
+                                                    <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-red-700 hover:underline truncate block">
+                                                       <i className="fas fa-link fa-xs mr-2"></i>{source.title}
                                                     </a>
                                                 </li>
                                             ))}

@@ -21,13 +21,13 @@
   }
   @keyframes pulse-red {
     0% {
-        box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+        box-shadow: 0 0 0 0 rgba(185, 28, 28, 0.7);
     }
     70% {
-        box-shadow: 0 0 0 8px rgba(220, 38, 38, 0);
+        box-shadow: 0 0 0 8px rgba(185, 28, 28, 0);
     }
     100% {
-        box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+        box-shadow: 0 0 0 0 rgba(185, 28, 28, 0);
     }
   }
   .animate-pulse-red {
@@ -48,6 +48,20 @@
   .animate-placeholder-pulse::placeholder {
     animation: placeholder-pulse 2s ease-in-out infinite;
   }
+  /* Estilos base para scrollbar gris */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
 </style>
 <script type="importmap">
 {
@@ -67,7 +81,8 @@
 }
 </script>
 </head>
-<body class="bg-slate-50 font-sans pb-20 sm:pb-0 dark:bg-slate-900 dark:text-slate-300">
+<body class="bg-white font-sans pb-20 sm:pb-0 text-black dark:bg-neutral-950 dark:text-gray-100">
+    <!-- Llamada inicial React: Punto de montaje -->
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
